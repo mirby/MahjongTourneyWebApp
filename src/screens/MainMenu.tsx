@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { deserializeTournament } from '../core/serialize';
+import { parseSaveFile } from '../core/serialize';
 import { Tournament } from '../core/types';
 import { loadAutosave } from '../store/store';
 
@@ -16,12 +16,10 @@ export function MainMenu({ onCreate, onLoad }: Props) {
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      onLoad(deserializeTournament(JSON.parse(await file.text())));
+      onLoad(parseSaveFile(await file.arrayBuffer()));
     } catch (e) {
       setError(
-        e instanceof SyntaxError
-          ? "That file isn't readable. Tournament files saved by the old Godot version can't be opened here; only files saved from this web version."
-          : (e as Error).message,
+        e instanceof SyntaxError ? "That file isn't a readable tournament save." : (e as Error).message,
       );
     }
   };

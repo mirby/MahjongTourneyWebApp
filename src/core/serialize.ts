@@ -1,3 +1,4 @@
+import { decodeGodotVar, looksLikeJson } from './godotVar';
 import {
   Cut,
   defaultSettings,
@@ -106,6 +107,14 @@ function deserializeSettings(d: Json): TournamentSettings {
     scorePerShuugi: d.score_per_shuugi ?? base.scorePerShuugi,
     scriptId: d.script_id ?? '',
   };
+}
+
+/** Reads a save file: either JSON from this app, or the Godot version's binary .tmnt format. */
+export function parseSaveFile(buffer: ArrayBuffer): Tournament {
+  if (looksLikeJson(buffer)) {
+    return deserializeTournament(JSON.parse(new TextDecoder().decode(buffer)));
+  }
+  return deserializeTournament(decodeGodotVar(buffer) as Json);
 }
 
 export function serializeTournament(t: Tournament): Json {

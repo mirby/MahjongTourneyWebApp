@@ -46,8 +46,9 @@ tests/          Scoring, pairing, store flow, and UI smoke tests
 * Tournaments autosave to the browser (localStorage) after every change; the main menu offers to continue it.
   localStorage belongs to one browser on one machine, so also use **Save Tournament Data to File** for backups.
 * Save files are JSON with a `.tmnt` extension. The keys match the Godot version's `serialize()` output.
-* **Files saved by the Godot version cannot be opened.** Godot writes them in its own binary format
-  (`store_var`), which this app doesn't read.
+* **Files saved by the Godot version open directly.** "Load From File" detects Godot's binary `store_var` format and
+  converts it (`src/core/godotVar.ts`). Once saved again from the web app, they are JSON.
+  Tested against a real 160-player, 40-table save from the Godot version.
 
 ## Google Sheets
 
