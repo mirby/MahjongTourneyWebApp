@@ -105,3 +105,29 @@ h2, h3 { margin: 0 0 10px; font-weight: 600; text-align: center; }
 .stack { display: flex; flex-direction: column; gap: 8px; }
 .pad-sides { padding: 0 20px; }
 .preview { width: min(850px, 94vw); margin: 0 auto; display: flex; flex-direction: column; flex: 1; min-height: 0; padding-bottom: 20px; }
+
+.toaster {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+  z-index: 1000;
+}
+.toast {
+  padding: 10px 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  animation: toast-in 0.15s ease-out;
+}
+.toast.error { border-left-color: var(--danger); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}

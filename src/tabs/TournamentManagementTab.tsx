@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { NumericInput } from '../components/NumericInput';
+import { toast } from '../components/Toaster';
 import { playersCsv, tablesCsv } from '../core/csv';
 import { downloadText, snakeCase } from '../core/format';
 import { serializeTournament } from '../core/serialize';
@@ -164,21 +165,19 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
   const replaceTables = useStore((s) => s.replaceTables);
 
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
   const scriptId = tournament.settings.scriptId;
 
   const run = async (job: () => Promise<string>) => {
     setBusy(true);
     try {
-      setMessage({ text: await job(), error: false });
+      toast(await job());
     } catch (e) {
-      setMessage({
-        text:
-          e instanceof TypeError
-            ? 'The request failed or was blocked by the browser. Check the script ID and that the web app is deployed with access set to "Anyone". If you were exporting, the data may or may not have arrived.'
-            : (e as Error).message,
-        error: true,
-      });
+      toast(
+        e instanceof TypeError
+          ? 'The request failed or was blocked by the browser. Check the script ID and that the web app is deployed with access set to "Anyone". If you were exporting, the data may or may not have arrived.'
+          : (e as Error).message,
+        { error: true },
+      );
     } finally {
       setBusy(false);
     }
@@ -198,9 +197,6 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="stack">
-      {message && (
-        <div className={`note ${message.error ? 'red' : ''}`} style={{ textAlign: 'center' }}>{message.text}</div>
-      )}
       <Row label="Google Apps Script ID">
         <input type="text" value={scriptId} onChange={(e) => setScriptId(e.target.value)} />
       </Row>
