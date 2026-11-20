@@ -1,10 +1,29 @@
 import { formatScore } from './format';
-import { newTable, Player, Scores, Table, Tournament, tableSize } from './types';
+import { isComplete } from './scoring';
+import { newTable, Player, Scores, Table, Tournament, TournamentSettings, tableSize } from './types';
 
 const urlFor = (scriptId: string) => `https://script.google.com/macros/s/${encodeURIComponent(scriptId.trim())}/exec`;
 
 export function getRound(tables: Table[], roundId: number): Table[] {
   return tables.filter((t) => t.roundId === roundId).sort((a, b) => a.tableId - b.tableId);
+}
+
+/**
+ * Tournament-wide stats over every fully scored table so far:
+ * the highest raw final table points anyone has finished a game with (null before any game is scored),
+ * and how many penalties have been given (each non-zero penalty entry counts once, whatever its size).
+ */
+export function exportStats(tables: Table[], settings: TournamentSettings) {
+  let highestScore: number | null = null;
+  let penaltyCount = 0;
+  for (const table of tables) {
+    if (!isComplete(table, settings)) continue;
+    for (const points of table.finalPoints) {
+      if (highestScore === null || points > highestScore) highestScore = points;
+    }
+    penaltyCount += table.penalties.filter((p) => p !== 0).length;
+  }
+  return { highestScore, penaltyCount };
 }
 
 export function buildExportPayload(
@@ -23,8 +42,16 @@ export function buildExportPayload(
     table.playerIds.map((id) => [id, id === 0 ? 'Substitute Player' : (playersById[id]?.name ?? '')]),
   );
 
-  // tableCount is written to Score Entry!R3 by the Apps Script (scripts that predate it ignore it).
-  return { roundNumber, standings, tables, tableCount: tables.length, shuugi: t.settings.shuugi };
+  // tableCount is written to Score Entry!R3 and stats to Stats!B1:B2 by the Apps Script
+  // (scripts that predate these fields ignore them).
+  return {
+    roundNumber,
+    standings,
+    tables,
+    tableCount: tables.length,
+    stats: exportStats(t.tables, t.settings),
+    shuugi: t.settings.shuugi,
+  };
 }
 
 async function errorMessage(res: Response): Promise<string> {

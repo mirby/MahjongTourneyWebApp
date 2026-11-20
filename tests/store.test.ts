@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { generatePairings } from '../src/core/pairing';
 import { newTable, newTournament, ScoreModification, tableSize } from '../src/core/types';
-import { applySheetScores, buildExportPayload } from '../src/core/sheets';
+import { applySheetScores, buildExportPayload, exportStats } from '../src/core/sheets';
 import { playersCsv, tablesCsv } from '../src/core/csv';
 import { deserializeTournament, serializeTournament } from '../src/core/serialize';
 import { useStore } from '../src/store/store';
@@ -30,6 +30,28 @@ function playRound(scoresByTable: number[][]) {
     useStore.getState().updateTable({ ...t, roundId: round, finalPoints: scoresByTable[i], penalties: [0, 0, 0, 0] });
   });
 }
+
+describe('exportStats', () => {
+  const settings = newTournament().settings;
+  const scored = (points: number[], penalties: number[], roundId = 1) =>
+    newTable({ roundId, playerIds: [1, 2, 3, 4], playerSeats: [0, 1, 2, 3], finalPoints: points, penalties });
+
+  it('finds the highest raw points and counts penalties across scored tables', () => {
+    const stats = exportStats(
+      [
+        scored([52300, 30000, 20000, -2300], [0, 20, 0, 0]),
+        scored([41000, 35000, 14000, 10000], [10, 0, 0, 5], 2),
+        newTable({ roundId: 3, playerIds: [1, 2, 3, 4] }), // not scored yet: ignored
+      ],
+      settings,
+    );
+    expect(stats).toEqual({ highestScore: 52300, penaltyCount: 3 });
+  });
+
+  it('has no high score before any game is scored', () => {
+    expect(exportStats([newTable({ playerIds: [1, 2, 3, 4] })], settings)).toEqual({ highestScore: null, penaltyCount: 0 });
+  });
+});
 
 describe('tournament flow through the store', () => {
   beforeEach(freshTournament);
