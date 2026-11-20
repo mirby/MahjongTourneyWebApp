@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { versionLabel } from '../buildInfo';
 import { parseSaveFile } from '../core/serialize';
 import { Tournament } from '../core/types';
 import { loadAutosave } from '../store/store';
@@ -46,6 +47,7 @@ export function MainMenu({ onCreate, onLoad }: Props) {
           }}
         />
         {error && <div className="note red">{error}</div>}
+        <div className="version">{versionLabel()}</div>
       </div>
     </div>
   );

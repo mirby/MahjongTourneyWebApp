@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { versionLabel } from '../buildInfo';
 import { NumericInput } from '../components/NumericInput';
 import { toast } from '../components/Toaster';
 import { playersCsv, tablesCsv } from '../core/csv';
@@ -247,6 +248,7 @@ export function TournamentManagementTab() {
           <button onClick={() => setPanel('csv')}>Export Tournament Data to CSV</button>
         </div>
         <div className="spacer" />
+        <div className="version">{versionLabel()}</div>
       </div>
 
       <div className="pane" style={{ justifyContent: panel === 'csv' || panel === 'cutManage' ? 'flex-start' : 'center' }}>

@@ -1,3 +1,4 @@
+import { APP_BUILD_TIME, APP_COMMIT } from '../buildInfo';
 import { formatScore } from './format';
 import { isComplete } from './scoring';
 import { newTable, Player, Scores, Table, Tournament, TournamentSettings, tableSize } from './types';
@@ -51,6 +52,8 @@ export function buildExportPayload(
     tableCount: tables.length,
     stats: exportStats(t.tables, t.settings),
     shuugi: t.settings.shuugi,
+    // Which build of the web app sent this export.
+    appVersion: `${APP_COMMIT} (built ${APP_BUILD_TIME})`,
   };
 }
 

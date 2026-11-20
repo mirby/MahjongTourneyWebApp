@@ -135,3 +135,5 @@ h2, h3 { margin: 0 0 10px; font-weight: 600; text-align: center; }
 .divider { width: 100%; border: none; border-top: 1px solid var(--muted); opacity: 0.5; margin: 6px 0; }
 .round-summary { display: flex; flex-direction: column; gap: 4px; max-height: 30vh; overflow-y: auto; }
 .active-round { color: var(--accent); font-weight: 600; }
+
+.version { font-size: 12px; color: var(--muted); text-align: center; }
