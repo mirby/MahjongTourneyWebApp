@@ -71,7 +71,23 @@ export async function exportToSheets(scriptId: string, payload: unknown): Promis
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(`Error ${res.status}: ${await errorMessage(res)}`);
-  return 'Export complete.';
+  return exportResult(await res.text());
+}
+
+/**
+ * Interprets the script's reply to an export. The script answers "Success!" when the round
+ * was written; with a try/catch in doPost it answers "Error: <message>" instead. An HTML page
+ * means the script crashed before it could answer.
+ */
+export function exportResult(body: string): string {
+  const text = body.trim();
+  if (text === 'Success!') return 'Export complete.';
+  if (text.startsWith('<')) {
+    throw new Error(
+      'The spreadsheet script crashed during the export. Some tabs may already be updated. Run the failing step from the Apps Script editor to see the error.',
+    );
+  }
+  throw new Error(`The spreadsheet script reported a problem: ${text.replace(/^Error:\s*/i, '') || '(empty reply)'}`);
 }
 
 export async function fetchSheetScores(scriptId: string, t: Tournament): Promise<unknown> {

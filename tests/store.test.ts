@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { generatePairings } from '../src/core/pairing';
 import { newTable, newTournament, ScoreModification, tableSize } from '../src/core/types';
-import { applySheetScores, buildExportPayload, exportStats } from '../src/core/sheets';
+import { applySheetScores, buildExportPayload, exportResult, exportStats } from '../src/core/sheets';
 import { playersCsv, tablesCsv } from '../src/core/csv';
 import { deserializeTournament, serializeTournament } from '../src/core/serialize';
 import { useStore } from '../src/store/store';
@@ -30,6 +30,20 @@ function playRound(scoresByTable: number[][]) {
     useStore.getState().updateTable({ ...t, roundId: round, finalPoints: scoresByTable[i], penalties: [0, 0, 0, 0] });
   });
 }
+
+describe('exportResult', () => {
+  it('accepts the script success reply', () => {
+    expect(exportResult('Success!\n')).toBe('Export complete.');
+  });
+  it('passes on an error the script caught', () => {
+    expect(() => exportResult('Error: Cannot write to protected range B1:B2')).toThrow(
+      'The spreadsheet script reported a problem: Cannot write to protected range B1:B2',
+    );
+  });
+  it('explains an uncaught script crash', () => {
+    expect(() => exportResult('<!DOCTYPE html><html>...')).toThrow(/crashed during the export/);
+  });
+});
 
 describe('exportStats', () => {
   const settings = newTournament().settings;
