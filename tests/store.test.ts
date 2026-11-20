@@ -93,6 +93,7 @@ describe('tournament flow through the store', () => {
     expect(payload.roundNumber).toBe(1);
     expect(payload.standings.length).toBe(8);
     expect(payload.tables.length).toBe(2);
+    expect(payload.tableCount).toBe(2);
 
     // Pretend the spreadsheet returns new scores for table 1.
     const t1 = s.tournament.tables.find((t) => t.tableId === 1)!;

@@ -23,7 +23,8 @@ export function buildExportPayload(
     table.playerIds.map((id) => [id, id === 0 ? 'Substitute Player' : (playersById[id]?.name ?? '')]),
   );
 
-  return { roundNumber, standings, tables, shuugi: t.settings.shuugi };
+  // tableCount is written to Score Entry!R3 by the Apps Script (scripts that predate it ignore it).
+  return { roundNumber, standings, tables, tableCount: tables.length, shuugi: t.settings.shuugi };
 }
 
 async function errorMessage(res: Response): Promise<string> {
