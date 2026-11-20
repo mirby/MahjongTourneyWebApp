@@ -32,7 +32,7 @@ interface StoreState {
   closeTournament: () => void;
 
   addSingleTable: (table: Table) => void;
-  addRound: (tables: Table[]) => void;
+  addRound: (tables: Table[], pairingBlocks?: number) => void;
   updateTable: (table: Table) => void;
   replaceTables: (tables: Table[]) => void;
 
@@ -62,7 +62,7 @@ export const useStore = create<StoreState>((set, get) => ({
   addSingleTable: (table) =>
     set((s) => ({ tournament: { ...s.tournament, tables: [...s.tournament.tables, table] } })),
 
-  addRound: (newTables) =>
+  addRound: (newTables, pairingBlocks) =>
     set((s) => {
       const roundId = s.tournament.nextRound;
       return {
@@ -70,6 +70,10 @@ export const useStore = create<StoreState>((set, get) => ({
           ...s.tournament,
           nextRound: roundId + 1,
           tables: [...s.tournament.tables, ...newTables.map((t) => ({ ...t, roundId }))],
+          roundPairingBlocks:
+            pairingBlocks === undefined
+              ? s.tournament.roundPairingBlocks
+              : { ...s.tournament.roundPairingBlocks, [roundId]: pairingBlocks },
         },
       };
     }),

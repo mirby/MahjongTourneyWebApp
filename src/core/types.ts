@@ -135,6 +135,8 @@ export interface Tournament {
   tables: Table[];
   cuts: Cut[];
   nextRound: number;
+  /** Round number -> Pairing Blocks setting used to create it. Missing for rounds from older saves. */
+  roundPairingBlocks: Record<number, number>;
 }
 
 export function newTournament(): Tournament {
@@ -146,6 +148,7 @@ export function newTournament(): Tournament {
     tables: [],
     cuts: [],
     nextRound: 1,
+    roundPairingBlocks: {},
   };
 }
 

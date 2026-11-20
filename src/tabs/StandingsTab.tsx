@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { HanchanList } from '../components/HanchanList';
 import { PlayerList } from '../components/PlayerList';
+import { computeStandings } from '../core/standings';
 import { useStore } from '../store/store';
 
 export function StandingsTab() {
@@ -8,6 +9,10 @@ export function StandingsTab() {
   const scores = useStore((s) => s.scores);
   const playersById = useStore((s) => s.playersById);
   const [selected, setSelected] = useState<number | null>(null);
+  const standings = useMemo(
+    () => computeStandings(tournament.registeredPlayers, scores, tournament.tables, tournament.settings),
+    [tournament.registeredPlayers, scores, tournament.tables, tournament.settings],
+  );
 
   return (
     <div className="split">
@@ -18,6 +23,8 @@ export function StandingsTab() {
           settings={tournament.settings}
           selectedId={selected}
           onSelect={setSelected}
+          standings={standings}
+          defaultSort={{ key: 'score', asc: false }}
         />
       </div>
       <div className="pane">

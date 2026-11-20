@@ -32,6 +32,16 @@ export function RoundManagementTab() {
 
   const activeTables = tournament.tables.filter((t) => !isComplete(t, settings)).length;
 
+  const rounds = Array.from({ length: tournament.nextRound - 1 }, (_, i) => {
+    const round = i + 1;
+    const tables = tournament.tables.filter((t) => t.roundId === round);
+    return {
+      round,
+      blocks: tournament.roundPairingBlocks[round],
+      complete: tables.every((t) => isComplete(t, settings)),
+    };
+  });
+
   const create = () => {
     setPairings(
       generatePairings({
@@ -111,7 +121,7 @@ export function RoundManagementTab() {
               <button
                 className="primary"
                 onClick={() => {
-                  addRound(pairings.tables);
+                  addRound(pairings.tables, swissBlocks);
                   setPairings(null);
                 }}
               >
@@ -142,6 +152,19 @@ export function RoundManagementTab() {
               <NumericInput value={roundTime} onChange={setRoundTime} />
             </Setting>
             <button onClick={() => startRound(Math.trunc(roundTime) * 60)}>Start Round</button>
+            {rounds.length > 0 && (
+              <>
+                <hr className="divider" />
+                <div className="round-summary pad-sides">
+                  {rounds.map((r) => (
+                    <div key={r.round}>
+                      Round {r.round}: Pairing Blocks ({r.blocks ?? '?'}) -{' '}
+                      <span className={r.complete ? 'muted' : 'active-round'}>{r.complete ? 'Complete' : 'Active'}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 

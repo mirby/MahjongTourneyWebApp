@@ -3,6 +3,7 @@ import { generatePairings } from '../src/core/pairing';
 import { newTable, newTournament, ScoreModification, tableSize } from '../src/core/types';
 import { applySheetScores, buildExportPayload } from '../src/core/sheets';
 import { playersCsv, tablesCsv } from '../src/core/csv';
+import { deserializeTournament, serializeTournament } from '../src/core/serialize';
 import { useStore } from '../src/store/store';
 
 const players = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: `P${i + 1}`, affiliation: i % 2 ? 'A, Inc' : 'B' }));
@@ -42,6 +43,19 @@ describe('tournament flow through the store', () => {
     const total = Object.values(s.scores).reduce((a, b) => a + b, 0);
     expect(total).toBeCloseTo(0);
     expect(Object.keys(s.scores).length).toBe(8);
+  });
+
+  it('records the pairing blocks used for each round and saves them', () => {
+    const s = useStore.getState();
+    s.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] })], 1);
+    s.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] })], 4);
+    const t = useStore.getState().tournament;
+    expect(t.roundPairingBlocks).toEqual({ 1: 1, 2: 4 });
+    const roundTrip = deserializeTournament(JSON.parse(JSON.stringify(serializeTournament(t))));
+    expect(roundTrip.roundPairingBlocks).toEqual({ 1: 1, 2: 4 });
+    // Older saves have no record of it.
+    const { round_pairing_blocks: _, ...old } = serializeTournament(t);
+    expect(deserializeTournament(old).roundPairingBlocks).toEqual({});
   });
 
   it('cuts to the top players and deactivates the rest', () => {

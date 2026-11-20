@@ -117,6 +117,16 @@ export function parseSaveFile(buffer: ArrayBuffer): Tournament {
   return deserializeTournament(decodeGodotVar(buffer) as Json);
 }
 
+function deserializeRoundPairingBlocks(d: unknown): Record<number, number> {
+  const result: Record<number, number> = {};
+  if (d && typeof d === 'object') {
+    for (const [round, blocks] of Object.entries(d)) {
+      if (typeof blocks === 'number') result[+round] = blocks;
+    }
+  }
+  return result;
+}
+
 export function serializeTournament(t: Tournament): Json {
   return {
     name: t.name,
@@ -126,6 +136,8 @@ export function serializeTournament(t: Tournament): Json {
     tables: t.tables.map(serializeTable),
     cuts: t.cuts.map(serializeCut),
     next_round: t.nextRound,
+    // Not in the Godot format; older saves simply won't have it.
+    round_pairing_blocks: t.roundPairingBlocks,
   };
 }
 
@@ -141,5 +153,6 @@ export function deserializeTournament(d: Json): Tournament {
     tables: (d.tables ?? []).map(deserializeTable),
     cuts: (d.cuts ?? []).map(deserializeCut),
     nextRound: d.next_round ?? 1,
+    roundPairingBlocks: deserializeRoundPairingBlocks(d.round_pairing_blocks),
   };
 }
