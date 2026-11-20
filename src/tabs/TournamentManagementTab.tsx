@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NumericInput } from '../components/NumericInput';
 import { toast } from '../components/Toaster';
 import { playersCsv, tablesCsv } from '../core/csv';
-import { downloadText, snakeCase } from '../core/format';
+import { saveTextAs, snakeCase } from '../core/format';
 import { serializeTournament } from '../core/serialize';
 import { applySheetScores, buildExportPayload, exportToSheets, fetchSheetScores } from '../core/sheets';
 import { Cut, ScoreModification } from '../core/types';
@@ -130,6 +130,16 @@ function CutManagement({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Asks for a file name and saves, confirming or reporting errors with a toast. */
+async function saveWithToast(...args: Parameters<typeof saveTextAs>) {
+  try {
+    const name = await saveTextAs(...args);
+    if (name) toast(`Saved ${name}.`);
+  } catch (e) {
+    toast(`Could not save the file: ${(e as Error).message}`, { error: true });
+  }
+}
+
 function CsvExport({ onDone }: { onDone: () => void }) {
   const tournament = useStore((s) => s.tournament);
   const [view, setView] = useState<'players' | 'tables'>('players');
@@ -146,7 +156,11 @@ function CsvExport({ onDone }: { onDone: () => void }) {
         <button onClick={() => navigator.clipboard?.writeText(text)}>Copy</button>
         <button
           onClick={() =>
-            downloadText(`${snakeCase(tournament.name) || 'tournament'}_${view}.csv`, text, 'text/csv')
+            saveWithToast(`${snakeCase(tournament.name) || 'tournament'}_${view}.csv`, text, {
+              mime: 'text/csv',
+              extension: '.csv',
+              description: 'CSV file',
+            })
           }
         >
           Download .csv
@@ -215,10 +229,10 @@ export function TournamentManagementTab() {
   const close = () => setPanel('none');
 
   const save = () =>
-    downloadText(
+    saveWithToast(
       `${snakeCase(tournament.name) || 'tournament'}.tmnt`,
       JSON.stringify(serializeTournament(tournament), null, 2),
-      'application/json',
+      { mime: 'application/json', extension: '.tmnt', description: 'Tournament save file' },
     );
 
   return (

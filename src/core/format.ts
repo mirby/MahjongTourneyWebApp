@@ -48,3 +48,52 @@ export function downloadText(filename: string, text: string, mime = 'text/plain'
   a.remove();
   URL.revokeObjectURL(url);
 }
+
+const SAVE_PICKER_ID = 'mahjong-tournament-saves';
+
+type SaveFilePicker = (options: {
+  id?: string;
+  suggestedName?: string;
+  types?: { description: string; accept: Record<string, string[]> }[];
+}) => Promise<{ createWritable(): Promise<{ write(data: Blob): Promise<void>; close(): Promise<void> }> }>;
+
+/**
+ * Saves text to a file, always letting the user choose the file name.
+ * Uses the browser's Save As dialog where available (Chrome, Edge); elsewhere asks for
+ * a name first and then downloads. Resolves to the saved name, or null if the user cancelled.
+ * Must be called directly from a click handler.
+ *
+ * All saves share one picker id, so the browser reopens the dialog in whichever folder
+ * the user last saved to from this app (remembered across visits).
+ */
+export async function saveTextAs(
+  suggestedName: string,
+  text: string,
+  { mime = 'text/plain', extension, description }: { mime?: string; extension: string; description: string },
+): Promise<string | null> {
+  const blob = new Blob([text], { type: mime });
+  const picker = (window as unknown as { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+
+  if (picker) {
+    try {
+      const handle = await picker({
+        id: SAVE_PICKER_ID,
+        suggestedName,
+        types: [{ description, accept: { [mime]: [extension] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return (handle as unknown as { name?: string }).name ?? suggestedName;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return null;
+      // Any other failure (e.g. blocked in an embedded frame): fall back to asking for a name.
+    }
+  }
+
+  const entered = window.prompt('Save as:', suggestedName)?.trim();
+  if (!entered) return null;
+  const filename = entered.toLowerCase().endsWith(extension) ? entered : `${entered}${extension}`;
+  downloadText(filename, text, mime);
+  return filename;
+}
