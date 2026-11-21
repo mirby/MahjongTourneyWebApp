@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { deserializeTournament, serializeTournament } from '../core/serialize';
 import { calculateScores, roundDeleteBlocker, withoutRound } from '../core/tournament';
+import { cutQualifiers } from '../core/standings';
 import { Cut, newTournament, Player, Scores, Table, Tournament } from '../core/types';
 
 const AUTOSAVE_KEY = 'mahjong-tournament-autosave';
@@ -155,7 +156,15 @@ export const useStore = create<StoreState>((set, get) => ({
 
   createCut: (cut) => {
     const s = get();
-    const withCut: Tournament = { ...s.tournament, cuts: [...s.tournament.cuts, cut] };
+    // Break score ties at the cut line the same way the Standings tab orders them.
+    const tiebreakPriority = cutQualifiers(
+      s.tournament.registeredPlayers,
+      s.scores,
+      s.tournament.tables,
+      s.tournament.settings,
+      cut.playerCount,
+    );
+    const withCut: Tournament = { ...s.tournament, cuts: [...s.tournament.cuts, { ...cut, tiebreakPriority }] };
     const r = calculateScores(withCut);
     // Remember who was still in after the cut so later recalculations break ties the same way.
     const saved: Cut = { ...cut, tiebreakPriority: r.registeredPlayers.map((p) => p.id) };

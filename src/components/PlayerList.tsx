@@ -93,7 +93,7 @@ export function PlayerList({
               className={`selectable ${selectedId === player.id ? 'selected' : ''}`}
               onClick={(e) => { e.stopPropagation(); onSelect?.(player.id); }}
             >
-              {standings && <td className="num">{rank}</td>}
+              {standings && <td>{rank}</td>}
               <td>{player.id}</td>
               <td>
                 {editable ? (

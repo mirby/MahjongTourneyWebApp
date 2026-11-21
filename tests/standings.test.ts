@@ -51,7 +51,7 @@ describe('tiebreakStats', () => {
 });
 
 describe('computeStandings', () => {
-  it('orders score ties by better average placement but shows a shared rank', () => {
+  it('orders score ties by better average placement and ranks them in that order', () => {
     // Players 1 and 2 have the same total, but 1 has two firsts and 2 has a first and a second.
     const scores: Scores = { 1: 50, 2: 50, 3: 0 };
     const tables = [
@@ -62,7 +62,7 @@ describe('computeStandings', () => {
     ];
     expect(computeStandings(players(2, 1, 3), scores, tables, settings)).toEqual({
       1: { rank: 1, position: 1 },
-      2: { rank: 1, position: 2 },
+      2: { rank: 2, position: 2 },
       3: { rank: 3, position: 3 },
     });
   });
@@ -78,7 +78,7 @@ describe('computeStandings', () => {
     const t = totals(tables);
     expect(t[1]).toBeCloseTo(t[2]);
     expect(computeStandings(players(1, 2), { 1: t[1], 2: t[2] }, tables, settings)).toEqual({
-      1: { rank: 1, position: 2 },
+      1: { rank: 2, position: 2 },
       2: { rank: 1, position: 1 },
     });
   });
@@ -87,7 +87,7 @@ describe('computeStandings', () => {
     const tables = [table([1, 2, 3, 4], [30000, 30000, 20000, 20000]), table([2, 1, 3, 4], [30000, 30000, 20000, 20000])];
     const st = computeStandings(players(2, 1, 3, 4), totals(tables), tables, settings);
     expect(st[1]).toEqual({ rank: 1, position: 1 });
-    expect(st[2]).toEqual({ rank: 1, position: 2 });
+    expect(st[2]).toEqual({ rank: 2, position: 2 });
     expect(st[3].rank).toBe(3);
   });
 
@@ -95,7 +95,7 @@ describe('computeStandings', () => {
     // Totals are forced equal; player 1 has played no games, so has no placement average.
     const tables = [table([2, 5, 6, 7], [25000, 25000, 25000, 25000])];
     expect(computeStandings(players(1, 2), { 1: 0, 2: 0 }, tables, settings)).toEqual({
-      1: { rank: 1, position: 2 },
+      1: { rank: 2, position: 2 },
       2: { rank: 1, position: 1 },
     });
   });

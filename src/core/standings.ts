@@ -64,7 +64,7 @@ const differ = (a: number, b: number) =>
   a === b ? false : !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) > EPSILON;
 
 export interface Standing {
-  /** Displayed rank, by total score only: equal scores share a rank (1, 1, 3, ...). */
+  /** Displayed rank: the same as position, so score ties are shown already broken (1, 2, 3, ...). */
   rank: number;
   /**
    * Position in the standings order (1-based, unique): by total score, then best average
@@ -73,30 +73,55 @@ export interface Standing {
   position: number;
 }
 
+type Row = { id: number; key: number[] };
+
+/** Compares the first `upTo` keys, higher first; 0 if they are equal (within EPSILON). */
+function compareKeys(a: number[], b: number[], upTo = a.length) {
+  for (let i = 0; i < upTo; i++) if (differ(a[i], b[i])) return b[i] - a[i];
+  return 0;
+}
+
+/** Players in standings order: score, then best average placement, then best game, then Player ID. */
+function sortedRows(players: Player[], scores: Scores, tables: Table[], settings: TournamentSettings): Row[] {
+  const stats = tiebreakStats(tables, settings);
+  const rows = players.map((p) => {
+    const s = stats[p.id] ?? NO_STATS;
+    // Each key is "higher is better".
+    return { id: p.id, key: [scores[p.id] ?? 0, -s.averagePlacement, s.bestGamePoints] };
+  });
+  return rows.sort((a, b) => compareKeys(a.key, b.key) || a.id - b.id);
+}
+
 export function computeStandings(
   players: Player[],
   scores: Scores,
   tables: Table[],
   settings: TournamentSettings,
 ): Record<number, Standing> {
-  const stats = tiebreakStats(tables, settings);
-  const keyOf = (p: Player) => {
-    const s = stats[p.id] ?? NO_STATS;
-    // Each key is "higher is better".
-    return [scores[p.id] ?? 0, -s.averagePlacement, s.bestGamePoints];
-  };
-  const rows = players.map((p) => ({ id: p.id, key: keyOf(p) }));
-  const compare = (a: number[], b: number[], upTo = a.length) => {
-    for (let i = 0; i < upTo; i++) if (differ(a[i], b[i])) return b[i] - a[i];
-    return 0;
-  };
-  rows.sort((a, b) => compare(a.key, b.key) || a.id - b.id);
-
+  const rows = sortedRows(players, scores, tables, settings);
   const result: Record<number, Standing> = {};
   rows.forEach((r, i) => {
-    const prev = rows[i - 1];
-    const sameScore = prev !== undefined && compare(r.key, prev.key, 1) === 0;
-    result[r.id] = { rank: sameScore ? result[prev.id].rank : i + 1, position: i + 1 };
+    result[r.id] = { rank: i + 1, position: i + 1 };
   });
   return result;
+}
+
+/**
+ * The players who make a cut of `count`, using the same tiebreaks as the standings.
+ * Players still tied on every tiebreak across the cut line are left out, so the cut
+ * reports the tie instead of choosing between them by Player ID.
+ */
+export function cutQualifiers(
+  players: Player[],
+  scores: Scores,
+  tables: Table[],
+  settings: TournamentSettings,
+  count: number,
+): number[] {
+  const rows = sortedRows(players, scores, tables, settings);
+  if (rows.length <= count) return rows.map((r) => r.id);
+  let end = count;
+  const line = rows[count].key;
+  while (end > 0 && compareKeys(rows[end - 1].key, line) === 0) end--;
+  return rows.slice(0, end).map((r) => r.id);
 }
