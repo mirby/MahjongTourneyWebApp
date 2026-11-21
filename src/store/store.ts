@@ -27,6 +27,11 @@ interface StoreState {
   playersById: Record<number, Player>;
   /** Epoch ms at which the current round ends, or null when no timer is running. */
   roundEndsAt: number | null;
+  /**
+   * Pairing Blocks value typed on the Round Management tab, kept here so it survives
+   * switching tabs. null until changed; the tab then defaults to the last round's value.
+   */
+  pairingBlocks: number | null;
 
   loadTournament: (t: Tournament) => void;
   closeTournament: () => void;
@@ -47,6 +52,7 @@ interface StoreState {
   setScriptId: (id: string) => void;
   startRound: (seconds: number) => void;
   clearRoundTimer: () => void;
+  setPairingBlocks: (blocks: number) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => ({
@@ -55,9 +61,18 @@ export const useStore = create<StoreState>((set, get) => ({
   scores: {},
   playersById: {},
   roundEndsAt: null,
+  pairingBlocks: null,
 
-  loadTournament: (t) => set({ ...recalculated(t), active: true, roundEndsAt: null }),
-  closeTournament: () => set({ active: false, tournament: newTournament(), scores: {}, playersById: {}, roundEndsAt: null }),
+  loadTournament: (t) => set({ ...recalculated(t), active: true, roundEndsAt: null, pairingBlocks: null }),
+  closeTournament: () =>
+    set({
+      active: false,
+      tournament: newTournament(),
+      scores: {},
+      playersById: {},
+      roundEndsAt: null,
+      pairingBlocks: null,
+    }),
 
   addSingleTable: (table) =>
     set((s) => ({ tournament: { ...s.tournament, tables: [...s.tournament.tables, table] } })),
@@ -162,6 +177,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
   startRound: (seconds) => set({ roundEndsAt: seconds > 0 ? Date.now() + seconds * 1000 : null }),
   clearRoundTimer: () => set({ roundEndsAt: null }),
+  setPairingBlocks: (blocks) => set({ pairingBlocks: blocks }),
 }));
 
 // Autosave to the browser so a refresh or accidental close doesn't lose the tournament.

@@ -26,7 +26,11 @@ export function RoundManagementTab() {
   const [avoidDuplicates, setAvoidDuplicates] = useState(true);
   const [assignWinds, setAssignWinds] = useState(settings.assignSeatWinds);
   const [assignSubs, setAssignSubs] = useState(true);
-  const [swissBlocks, setSwissBlocks] = useState(1);
+  // Survives tab switches via the store; otherwise starts from the most recent round's value.
+  const storedBlocks = useStore((s) => s.pairingBlocks);
+  const setSwissBlocks = useStore((s) => s.setPairingBlocks);
+  const lastRoundBlocks = tournament.roundPairingBlocks[tournament.nextRound - 1];
+  const swissBlocks = storedBlocks ?? lastRoundBlocks ?? 1;
   const [roundTime, setRoundTime] = useState(settings.timePerRoundMinutes);
   const [pairings, setPairings] = useState<PairingResult | null>(null);
 
