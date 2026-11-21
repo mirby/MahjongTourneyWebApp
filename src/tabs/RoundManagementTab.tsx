@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { NumericInput } from '../components/NumericInput';
+import { toast } from '../components/Toaster';
 import { PlayerList } from '../components/PlayerList';
 import { generatePairings, PairingResult } from '../core/pairing';
 import { isComplete } from '../core/scoring';
+import { roundDeleteBlocker } from '../core/tournament';
 import { tableSize, WIND_NAMES } from '../core/types';
 import { getPlayerName, useStore } from '../store/store';
 
@@ -21,6 +23,7 @@ export function RoundManagementTab() {
   const playersById = useStore((s) => s.playersById);
   const addRound = useStore((s) => s.addRound);
   const startRound = useStore((s) => s.startRound);
+  const deleteRound = useStore((s) => s.deleteRound);
   const settings = tournament.settings;
 
   const [avoidDuplicates, setAvoidDuplicates] = useState(true);
@@ -43,8 +46,23 @@ export function RoundManagementTab() {
       round,
       blocks: tournament.roundPairingBlocks[round],
       complete: tables.every((t) => isComplete(t, settings)),
+      scoredTables: tables.filter((t) => t.finalPoints.length > 0).length,
+      deleteBlocker: roundDeleteBlocker(tournament, round),
     };
   });
+
+  const confirmDelete = (r: (typeof rounds)[number]) => {
+    const scoredWarning =
+      r.scoredTables > 0
+        ? `
+
+${r.scoredTables} table${r.scoredTables === 1 ? ' has' : 's have'} scores entered, which will also be deleted.`
+        : '';
+    if (!window.confirm(`Delete Round ${r.round}'s pairings? This can't be undone.${scoredWarning}`)) return;
+    const error = deleteRound(r.round);
+    if (error) toast(error, { error: true });
+    else toast(`Round ${r.round} pairings deleted. Create new pairings to replace it.`);
+  };
 
   const create = () => {
     setPairings(
@@ -161,9 +179,21 @@ export function RoundManagementTab() {
                 <hr className="divider" />
                 <div className="round-summary pad-sides">
                   {rounds.map((r) => (
-                    <div key={r.round}>
-                      Round {r.round}: Pairing Blocks ({r.blocks ?? '?'}) -{' '}
-                      <span className={r.complete ? 'muted' : 'active-round'}>{r.complete ? 'Complete' : 'Active'}</span>
+                    <div key={r.round} className="round-line">
+                      <span>
+                        Round {r.round}: Pairing Blocks ({r.blocks ?? '?'}) -{' '}
+                        <span className={r.complete ? 'muted' : 'active-round'}>{r.complete ? 'Complete' : 'Active'}</span>
+                      </span>
+                      {!r.complete && (
+                        <button
+                          className="small danger"
+                          disabled={r.deleteBlocker !== null}
+                          title={r.deleteBlocker ?? `Delete Round ${r.round}'s pairings`}
+                          onClick={() => confirmDelete(r)}
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>

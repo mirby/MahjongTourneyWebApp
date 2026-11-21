@@ -95,3 +95,28 @@ export function calculateScores(t: Tournament): ScoreResult {
 
   return { scores, registeredPlayers: registered, inactivePlayers: inactive };
 }
+
+/**
+ * Why a round's pairings can't be deleted, or null if they can.
+ * Only the latest round can go (removing an earlier one would leave a gap in the round
+ * numbers), and not while a cut covers it.
+ */
+export function roundDeleteBlocker(t: Tournament, round: number): string | null {
+  const latest = t.nextRound - 1;
+  if (round < 1 || round > latest) return `Round ${round} does not exist.`;
+  if (round !== latest) return `Only the latest round can be deleted. Delete Round ${latest} first.`;
+  if (t.cuts.some((c) => c.endRound >= round)) return `A cut includes Round ${round}. Delete that cut first.`;
+  return null;
+}
+
+/** The tournament with the latest round's pairings removed. Check roundDeleteBlocker first. */
+export function withoutRound(t: Tournament, round: number): Tournament {
+  const roundPairingBlocks = { ...t.roundPairingBlocks };
+  delete roundPairingBlocks[round];
+  return {
+    ...t,
+    tables: t.tables.filter((table) => table.roundId !== round),
+    roundPairingBlocks,
+    nextRound: round,
+  };
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deserializeTournament, serializeTournament } from '../core/serialize';
-import { calculateScores } from '../core/tournament';
+import { calculateScores, roundDeleteBlocker, withoutRound } from '../core/tournament';
 import { Cut, newTournament, Player, Scores, Table, Tournament } from '../core/types';
 
 const AUTOSAVE_KEY = 'mahjong-tournament-autosave';
@@ -38,6 +38,8 @@ interface StoreState {
 
   addSingleTable: (table: Table) => void;
   addRound: (tables: Table[], pairingBlocks?: number) => void;
+  /** Removes the latest round's pairings. Returns an error message instead if it can't. */
+  deleteRound: (round: number) => string | null;
   updateTable: (table: Table) => void;
   replaceTables: (tables: Table[]) => void;
 
@@ -92,6 +94,14 @@ export const useStore = create<StoreState>((set, get) => ({
         },
       };
     }),
+
+  deleteRound: (round) => {
+    const s = get();
+    const blocker = roundDeleteBlocker(s.tournament, round);
+    if (blocker) return blocker;
+    set(recalculated(withoutRound(s.tournament, round)));
+    return null;
+  },
 
   updateTable: (nt) =>
     set((s) => {

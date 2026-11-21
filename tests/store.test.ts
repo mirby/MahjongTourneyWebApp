@@ -94,6 +94,44 @@ describe('tournament flow through the store', () => {
     expect(deserializeTournament(old).roundPairingBlocks).toEqual({});
   });
 
+  it('deletes the latest round so it can be re-paired', () => {
+    playRound([[40000, 30000, 20000, 10000], [35000, 30000, 20000, 15000]]);
+    const scoresAfterRound1 = { ...useStore.getState().scores };
+    const s = useStore.getState();
+    s.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] }), newTable({ tableId: 2, playerIds: [5, 6, 7, 8] })], 4);
+    // Enter a score on one table of round 2, so deleting must also remove it from the totals.
+    const t = useStore.getState().tournament.tables.find((x) => x.roundId === 2 && x.tableId === 1)!;
+    useStore.getState().updateTable({ ...t, finalPoints: [40000, 30000, 20000, 10000], penalties: [0, 0, 0, 0] });
+
+    expect(useStore.getState().deleteRound(2)).toBeNull();
+    const after = useStore.getState();
+    expect(after.tournament.nextRound).toBe(2);
+    expect(after.tournament.tables.every((x) => x.roundId === 1)).toBe(true);
+    expect(after.tournament.roundPairingBlocks[2]).toBeUndefined();
+    expect(after.scores).toEqual(scoresAfterRound1);
+
+    // The next pairing becomes Round 2 again.
+    after.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] })], 2);
+    expect(useStore.getState().tournament.roundPairingBlocks[2]).toBe(2);
+  });
+
+  it('refuses to delete an earlier round or one covered by a cut', () => {
+    const s = useStore.getState();
+    s.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] })], 1);
+    s.addRound([newTable({ tableId: 1, playerIds: [1, 2, 3, 4] })], 1);
+    expect(useStore.getState().deleteRound(1)).toMatch(/Only the latest round/);
+    expect(useStore.getState().tournament.nextRound).toBe(3);
+
+    useStore.setState((st) => ({
+      tournament: {
+        ...st.tournament,
+        cuts: [{ playerCount: 4, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [] }],
+      },
+    }));
+    expect(useStore.getState().deleteRound(2)).toMatch(/cut includes Round 2/);
+    expect(useStore.getState().tournament.nextRound).toBe(3);
+  });
+
   it('cuts to the top players and deactivates the rest', () => {
     playRound([[45000, 25000, 20000, 10000], [40000, 30000, 20000, 10000]]);
     const tieProblem = useStore.getState().createCut({
