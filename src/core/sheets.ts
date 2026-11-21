@@ -1,6 +1,8 @@
 import { APP_BUILD_TIME, APP_COMMIT } from '../buildInfo';
 import { formatScore } from './format';
 import { isComplete } from './scoring';
+import { computeStandings } from './standings';
+import type { CutLevels } from './tournament';
 import { newTable, Player, Scores, Table, Tournament, TournamentSettings, tableSize } from './types';
 
 const urlFor = (scriptId: string) => `https://script.google.com/macros/s/${encodeURIComponent(scriptId.trim())}/exec`;
@@ -31,13 +33,15 @@ export function buildExportPayload(
   t: Tournament,
   scores: Scores,
   playersById: Record<number, Player>,
+  cutLevels: CutLevels = {},
 ) {
   const roundNumber = t.nextRound - 1;
 
-  const standings = t.registeredPlayers
-    .map((p) => ({ id: p.id, name: p.name, score: scores[p.id] ?? 0 }))
-    .sort((a, b) => b.score - a.score)
-    .map((r, i) => [i + 1, r.id, r.name, formatScore(r.score, t.settings)]);
+  // Same order and ranks as the Standings tab (top-cut players first, then tiebreaks).
+  const ranks = computeStandings(t.registeredPlayers, scores, t.tables, t.settings, cutLevels);
+  const standings = [...t.registeredPlayers]
+    .sort((a, b) => ranks[a.id].position - ranks[b.id].position)
+    .map((p) => [ranks[p.id].rank, p.id, p.name, formatScore(scores[p.id] ?? 0, t.settings)]);
 
   const tables = getRound(t.tables, roundNumber).map((table) =>
     table.playerIds.map((id) => [id, id === 0 ? 'Substitute Player' : (playersById[id]?.name ?? '')]),

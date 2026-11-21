@@ -53,6 +53,11 @@ export interface Cut {
   startRound: number;
   endRound: number;
   tiebreakPriority: number[];
+  /**
+   * Players who miss the cut keep playing (they stay in pairings) instead of being removed.
+   * Their scores are never modified, and everyone who made the cut always ranks above them.
+   */
+  remainingContinue: boolean;
 }
 
 export enum GameType {

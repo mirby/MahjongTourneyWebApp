@@ -134,7 +134,7 @@ describe('calculateScores with cuts', () => {
 
   it('moves players below the cut to inactive and halves scores', () => {
     const t = build();
-    const cut: Cut = { playerCount: 2, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 1, tiebreakPriority: [] };
+    const cut: Cut = { playerCount: 2, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue: false };
     t.cuts = [cut];
     const r = calculateScores(t);
     expect(r.registeredPlayers.map((p) => p.id).sort()).toEqual([1, 2]);
@@ -144,7 +144,7 @@ describe('calculateScores with cuts', () => {
 
   it('zeroes scores for a Zero cut', () => {
     const t = build();
-    t.cuts = [{ playerCount: 2, scoreModification: ScoreModification.Zero, startRound: 1, endRound: 1, tiebreakPriority: [] }];
+    t.cuts = [{ playerCount: 2, scoreModification: ScoreModification.Zero, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue: false }];
     expect(calculateScores(t).scores[1]).toBe(0);
   });
 });
@@ -155,7 +155,7 @@ describe('serialization', () => {
     t.name = 'Test Open';
     t.registeredPlayers = [{ id: 1, name: 'A', affiliation: 'X' }];
     t.tables = [table([40000, 30000, 20000, 10000], { roundId: 1, tableId: 1 })];
-    t.cuts = [{ playerCount: 8, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 2, tiebreakPriority: [1] }];
+    t.cuts = [{ playerCount: 8, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 2, tiebreakPriority: [1], remainingContinue: false }];
     const back = deserializeTournament(JSON.parse(JSON.stringify(serializeTournament(t))));
     expect(back).toEqual(t);
   });

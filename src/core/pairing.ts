@@ -200,6 +200,11 @@ export function generatePairings(opts: {
   existingTables: Table[];
   tableSize: number;
   settings: PairingSettings;
+  /**
+   * Cut level of each player (from "remaining players continue" cuts). Each level is paired
+   * separately, so players in a top cut only play each other. Highest level gets the first tables.
+   */
+  cutLevels?: Record<number, number>;
   rng?: Rng;
   maxAttempts?: number;
 }): PairingResult {
@@ -208,12 +213,23 @@ export function generatePairings(opts: {
   const maxAttempts = opts.maxAttempts ?? 100;
   const prior = priorPairings(existingTables);
 
+  const levelOf = (p: Player) => opts.cutLevels?.[p.id] ?? 0;
+  const groups = [...new Set(registered.map(levelOf))]
+    .sort((a, b) => b - a)
+    .map((level) => registered.filter((p) => levelOf(p) === level));
+
   let bestPairings: number[][] = [];
   let bestByes: number[] = [];
   let minDuplicates = Infinity;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const { pairings, byes } = swissPairings(registered, scores, existingTables, tableSize, settings, rng);
+    const pairings: number[][] = [];
+    const byes: number[] = [];
+    for (const group of groups) {
+      const r = swissPairings(group, scores, existingTables, tableSize, settings, rng);
+      pairings.push(...r.pairings);
+      byes.push(...r.byes);
+    }
 
     if (!settings.avoidDuplicates) {
       bestPairings = pairings;

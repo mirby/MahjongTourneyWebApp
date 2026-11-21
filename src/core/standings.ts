@@ -1,4 +1,5 @@
 import { isComplete } from './scoring';
+import type { CutLevels } from './tournament';
 import { Player, Scores, Table, TiebreakStrategy, TournamentSettings } from './types';
 
 /**
@@ -67,8 +68,8 @@ export interface Standing {
   /** Displayed rank: the same as position, so score ties are shown already broken (1, 2, 3, ...). */
   rank: number;
   /**
-   * Position in the standings order (1-based, unique): by total score, then best average
-   * placement, then highest raw table points in a single game, then Player ID.
+   * Position in the standings order (1-based, unique): players in a top cut first, then by
+   * total score, best average placement, highest raw table points in a single game, Player ID.
    */
   position: number;
 }
@@ -81,13 +82,22 @@ function compareKeys(a: number[], b: number[], upTo = a.length) {
   return 0;
 }
 
-/** Players in standings order: score, then best average placement, then best game, then Player ID. */
-function sortedRows(players: Player[], scores: Scores, tables: Table[], settings: TournamentSettings): Row[] {
+/**
+ * Players in standings order: cut level (players in a top cut first), then score, then best
+ * average placement, then best game, then Player ID.
+ */
+function sortedRows(
+  players: Player[],
+  scores: Scores,
+  tables: Table[],
+  settings: TournamentSettings,
+  levels: CutLevels,
+): Row[] {
   const stats = tiebreakStats(tables, settings);
   const rows = players.map((p) => {
     const s = stats[p.id] ?? NO_STATS;
     // Each key is "higher is better".
-    return { id: p.id, key: [scores[p.id] ?? 0, -s.averagePlacement, s.bestGamePoints] };
+    return { id: p.id, key: [levels[p.id] ?? 0, scores[p.id] ?? 0, -s.averagePlacement, s.bestGamePoints] };
   });
   return rows.sort((a, b) => compareKeys(a.key, b.key) || a.id - b.id);
 }
@@ -97,8 +107,9 @@ export function computeStandings(
   scores: Scores,
   tables: Table[],
   settings: TournamentSettings,
+  levels: CutLevels = {},
 ): Record<number, Standing> {
-  const rows = sortedRows(players, scores, tables, settings);
+  const rows = sortedRows(players, scores, tables, settings, levels);
   const result: Record<number, Standing> = {};
   rows.forEach((r, i) => {
     result[r.id] = { rank: i + 1, position: i + 1 };
@@ -108,6 +119,7 @@ export function computeStandings(
 
 /**
  * The players who make a cut of `count`, using the same tiebreaks as the standings.
+ * Pass only the players competing for the cut (those in the current top group).
  * Players still tied on every tiebreak across the cut line are left out, so the cut
  * reports the tie instead of choosing between them by Player ID.
  */
@@ -118,7 +130,7 @@ export function cutQualifiers(
   settings: TournamentSettings,
   count: number,
 ): number[] {
-  const rows = sortedRows(players, scores, tables, settings);
+  const rows = sortedRows(players, scores, tables, settings, {});
   if (rows.length <= count) return rows.map((r) => r.id);
   let end = count;
   const line = rows[count].key;

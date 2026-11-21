@@ -4,6 +4,7 @@ import { newTable, newTournament, ScoreModification, tableSize } from '../src/co
 import { applySheetScores, buildExportPayload, exportResult, exportStats } from '../src/core/sheets';
 import { playersCsv, tablesCsv } from '../src/core/csv';
 import { deserializeTournament, serializeTournament } from '../src/core/serialize';
+import { computeStandings } from '../src/core/standings';
 import { useStore } from '../src/store/store';
 
 const players = Array.from({ length: 8 }, (_, i) => ({ id: i + 1, name: `P${i + 1}`, affiliation: i % 2 ? 'A, Inc' : 'B' }));
@@ -125,7 +126,7 @@ describe('tournament flow through the store', () => {
     useStore.setState((st) => ({
       tournament: {
         ...st.tournament,
-        cuts: [{ playerCount: 4, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [] }],
+        cuts: [{ playerCount: 4, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [], remainingContinue: false }],
       },
     }));
     expect(useStore.getState().deleteRound(2)).toMatch(/cut includes Round 2/);
@@ -135,7 +136,7 @@ describe('tournament flow through the store', () => {
   it('cuts to the top players and deactivates the rest', () => {
     playRound([[45000, 25000, 20000, 10000], [40000, 30000, 20000, 10000]]);
     const tieProblem = useStore.getState().createCut({
-      playerCount: 2, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 1, tiebreakPriority: [],
+      playerCount: 2, scoreModification: ScoreModification.Halved, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue: false,
     });
     const s = useStore.getState();
     expect(tieProblem).toBe(false);
@@ -165,7 +166,7 @@ describe('tournament flow through the store', () => {
     expect(scores[1]).toBeCloseTo(scores[5]);
 
     const tieProblem = useStore.getState().createCut({
-      playerCount: 3, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [],
+      playerCount: 3, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [], remainingContinue: false,
     });
     expect(tieProblem).toBe(false);
     expect(useStore.getState().tournament.registeredPlayers.map((p) => p.id)).toEqual([1, 2, 6]);
@@ -174,7 +175,7 @@ describe('tournament flow through the store', () => {
   it('still reports a cut tie that no tiebreak separates', () => {
     playRound([[40000, 30000, 20000, 10000], [40000, 30000, 20000, 10000]]);
     const tieProblem = useStore.getState().createCut({
-      playerCount: 1, scoreModification: ScoreModification.None, startRound: 1, endRound: 1, tiebreakPriority: [],
+      playerCount: 1, scoreModification: ScoreModification.None, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue: false,
     });
     expect(tieProblem).toBe(true);
   });
@@ -233,5 +234,85 @@ describe('tournament flow through the store', () => {
     expect(useStore.getState().roundEndsAt).not.toBeNull();
     useStore.getState().clearRoundTimer();
     expect(useStore.getState().roundEndsAt).toBeNull();
+  });
+});
+
+describe('cuts where the remaining players continue', () => {
+  beforeEach(freshTournament);
+
+  // Round 1: P1-P4 at table 1 and P5-P8 at table 2, finishing in that order at each table.
+  const scoreRound = (points: number[][]) => {
+    const round = useStore.getState().tournament.nextRound - 1;
+    useStore.getState().tournament.tables
+      .filter((t) => t.roundId === round)
+      .forEach((t, i) => useStore.getState().updateTable({ ...t, finalPoints: points[i], penalties: [0, 0, 0, 0] }));
+  };
+  const addRound = (tables: number[][]) =>
+    useStore.getState().addRound(tables.map((ids, i) => newTable({ tableId: i + 1, playerIds: ids, playerSeats: [0, 1, 2, 3] })));
+  const cut = (playerCount: number, scoreModification: ScoreModification) =>
+    useStore.getState().createCut({
+      playerCount, scoreModification, startRound: 1, endRound: useStore.getState().tournament.nextRound - 1,
+      tiebreakPriority: [], remainingContinue: true,
+    });
+
+  beforeEach(() => {
+    addRound([[1, 2, 3, 4], [5, 6, 7, 8]]);
+    scoreRound([[50000, 30000, 15000, 5000], [40000, 30000, 20000, 10000]]);
+  });
+
+  it('keeps everyone playing and only modifies the scores of players who made the cut', () => {
+    const before = { ...useStore.getState().scores };
+    expect(cut(4, ScoreModification.Halved)).toBe(false);
+    const s = useStore.getState();
+    expect(s.tournament.registeredPlayers.length).toBe(8);
+    expect(s.tournament.inactivePlayers).toEqual([]);
+    const top = [1, 5, 2, 6]; // the four best scores
+    for (const id of top) expect(s.scores[id]).toBeCloseTo(before[id] / 2);
+    for (const id of [3, 4, 7, 8]) expect(s.scores[id]).toBeCloseTo(before[id]);
+    expect(Object.keys(s.cutLevels).map(Number).sort()).toEqual([1, 2, 5, 6]);
+  });
+
+  it('ranks the top cut above everyone else, whatever their scores', () => {
+    cut(4, ScoreModification.Zero);
+    // Round 2: the top cut plays each other, and P8 wins big at the other table.
+    addRound([[1, 2, 5, 6], [3, 4, 7, 8]]);
+    scoreRound([[10000, 20000, 30000, 40000], [5000, 5000, 5000, 85000]]);
+    const s = useStore.getState();
+    expect(s.scores[8]).toBeGreaterThan(s.scores[1]);
+    const st = computeStandings(s.tournament.registeredPlayers, s.scores, s.tournament.tables, s.tournament.settings, s.cutLevels);
+    const ranked = Object.entries(st).sort((a, b) => a[1].rank - b[1].rank).map(([id]) => Number(id));
+    expect(ranked.slice(0, 4).sort()).toEqual([1, 2, 5, 6]);
+    expect(ranked[4]).toBe(8);
+    // The sheet export uses the same order.
+    const payload = buildExportPayload(s.tournament, s.scores, s.playersById, s.cutLevels);
+    expect(payload.standings.slice(0, 5).map((r) => r[1])).toEqual(ranked.slice(0, 5));
+  });
+
+  it('pairs the top cut only with each other', () => {
+    cut(4, ScoreModification.None);
+    const s = useStore.getState();
+    const { tables } = generatePairings({
+      registered: s.tournament.registeredPlayers,
+      scores: s.scores,
+      cutLevels: s.cutLevels,
+      existingTables: s.tournament.tables,
+      tableSize: 4,
+      settings: { avoidDuplicates: true, assignSeatWinds: true, assignSubs: true, swissBlocks: 1, timePerRoundMinutes: 75 },
+    });
+    expect([...tables[0].playerIds].sort()).toEqual([1, 2, 5, 6]);
+    expect([...tables[1].playerIds].sort()).toEqual([3, 4, 7, 8]);
+  });
+
+  it('makes a later cut only from the players still in the top cut, and saves the option', () => {
+    cut(4, ScoreModification.None);
+    expect(cut(2, ScoreModification.None)).toBe(false);
+    const s = useStore.getState();
+    expect(Object.entries(s.cutLevels).filter(([, l]) => l === 2).map(([id]) => Number(id)).sort()).toEqual([1, 5]);
+    expect(s.tournament.registeredPlayers.length).toBe(8);
+
+    const roundTrip = deserializeTournament(JSON.parse(JSON.stringify(serializeTournament(s.tournament))));
+    expect(roundTrip.cuts.map((c) => c.remainingContinue)).toEqual([true, true]);
+    const { remaining_continue: _, ...old } = serializeTournament(s.tournament).cuts[0];
+    expect(deserializeTournament({ ...serializeTournament(s.tournament), cuts: [old] }).cuts[0].remainingContinue).toBe(false);
   });
 });

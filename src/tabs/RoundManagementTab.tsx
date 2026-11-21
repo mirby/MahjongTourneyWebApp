@@ -20,6 +20,7 @@ function Setting({ label, children, red }: { label: string; children: React.Reac
 export function RoundManagementTab() {
   const tournament = useStore((s) => s.tournament);
   const scores = useStore((s) => s.scores);
+  const cutLevels = useStore((s) => s.cutLevels);
   const playersById = useStore((s) => s.playersById);
   const addRound = useStore((s) => s.addRound);
   const startRound = useStore((s) => s.startRound);
@@ -69,6 +70,7 @@ ${r.scoredTables} table${r.scoredTables === 1 ? ' has' : 's have'} scores entere
       generatePairings({
         registered: tournament.registeredPlayers,
         scores,
+        cutLevels,
         existingTables: tournament.tables,
         tableSize: tableSize(settings),
         settings: {

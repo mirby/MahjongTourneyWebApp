@@ -7,11 +7,12 @@ import { useStore } from '../store/store';
 export function StandingsTab() {
   const tournament = useStore((s) => s.tournament);
   const scores = useStore((s) => s.scores);
+  const cutLevels = useStore((s) => s.cutLevels);
   const playersById = useStore((s) => s.playersById);
   const [selected, setSelected] = useState<number | null>(null);
   const standings = useMemo(
-    () => computeStandings(tournament.registeredPlayers, scores, tournament.tables, tournament.settings),
-    [tournament.registeredPlayers, scores, tournament.tables, tournament.settings],
+    () => computeStandings(tournament.registeredPlayers, scores, tournament.tables, tournament.settings, cutLevels),
+    [tournament.registeredPlayers, scores, tournament.tables, tournament.settings, cutLevels],
   );
 
   return (
@@ -24,7 +25,7 @@ export function StandingsTab() {
           selectedId={selected}
           onSelect={setSelected}
           standings={standings}
-          defaultSort={{ key: 'score', asc: false }}
+          defaultSort={{ key: 'rank', asc: true }}
         />
       </div>
       <div className="pane">

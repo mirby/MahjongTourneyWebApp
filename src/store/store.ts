@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deserializeTournament, serializeTournament } from '../core/serialize';
-import { calculateScores, roundDeleteBlocker, withoutRound } from '../core/tournament';
+import { calculateScores, CutLevels, roundDeleteBlocker, topCutLevel, withoutRound } from '../core/tournament';
 import { cutQualifiers } from '../core/standings';
 import { Cut, newTournament, Player, Scores, Table, Tournament } from '../core/types';
 
@@ -17,7 +17,7 @@ function indexPlayers(t: Tournament): Record<number, Player> {
 function recalculated(t: Tournament) {
   const r = calculateScores(t);
   const tournament: Tournament = { ...t, registeredPlayers: r.registeredPlayers, inactivePlayers: r.inactivePlayers };
-  return { tournament, scores: r.scores, playersById: indexPlayers(tournament) };
+  return { tournament, scores: r.scores, cutLevels: r.cutLevels, playersById: indexPlayers(tournament) };
 }
 
 interface StoreState {
@@ -25,6 +25,8 @@ interface StoreState {
   active: boolean;
   tournament: Tournament;
   scores: Scores;
+  /** Cut level of each player (see calculateScores): players in a top cut rank and pair above the rest. */
+  cutLevels: CutLevels;
   playersById: Record<number, Player>;
   /** Epoch ms at which the current round ends, or null when no timer is running. */
   roundEndsAt: number | null;
@@ -62,6 +64,7 @@ export const useStore = create<StoreState>((set, get) => ({
   active: false,
   tournament: newTournament(),
   scores: {},
+  cutLevels: {},
   playersById: {},
   roundEndsAt: null,
   pairingBlocks: null,
@@ -72,6 +75,7 @@ export const useStore = create<StoreState>((set, get) => ({
       active: false,
       tournament: newTournament(),
       scores: {},
+      cutLevels: {},
       playersById: {},
       roundEndsAt: null,
       pairingBlocks: null,
@@ -156,9 +160,12 @@ export const useStore = create<StoreState>((set, get) => ({
 
   createCut: (cut) => {
     const s = get();
+    // Only the players in the current top group compete for the cut.
+    const level = topCutLevel(s.tournament.registeredPlayers, s.cutLevels);
+    const candidates = s.tournament.registeredPlayers.filter((p) => (s.cutLevels[p.id] ?? 0) === level);
     // Break score ties at the cut line the same way the Standings tab orders them.
     const tiebreakPriority = cutQualifiers(
-      s.tournament.registeredPlayers,
+      candidates,
       s.scores,
       s.tournament.tables,
       s.tournament.settings,
@@ -166,16 +173,17 @@ export const useStore = create<StoreState>((set, get) => ({
     );
     const withCut: Tournament = { ...s.tournament, cuts: [...s.tournament.cuts, { ...cut, tiebreakPriority }] };
     const r = calculateScores(withCut);
-    // Remember who was still in after the cut so later recalculations break ties the same way.
-    const saved: Cut = { ...cut, tiebreakPriority: r.registeredPlayers.map((p) => p.id) };
+    // Remember who made the cut so later recalculations break ties the same way.
+    const qualifiers = r.cutQualifierIds[r.cutQualifierIds.length - 1];
+    const saved: Cut = { ...cut, tiebreakPriority: qualifiers };
     const tournament: Tournament = {
       ...withCut,
       cuts: [...s.tournament.cuts, saved],
       registeredPlayers: r.registeredPlayers,
       inactivePlayers: r.inactivePlayers,
     };
-    set({ tournament, scores: r.scores, playersById: indexPlayers(tournament) });
-    return r.registeredPlayers.length !== cut.playerCount;
+    set({ tournament, scores: r.scores, cutLevels: r.cutLevels, playersById: indexPlayers(tournament) });
+    return qualifiers.length > cut.playerCount;
   },
 
   deleteCut: (index) =>

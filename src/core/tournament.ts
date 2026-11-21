@@ -1,10 +1,25 @@
 import { scoreTable } from './scoring';
-import { Player, Scores, ScoreModification, Tournament } from './types';
+import { Cut, Player, Scores, ScoreModification, Tournament } from './types';
 
 export interface ScoreResult {
   scores: Scores;
   registeredPlayers: Player[];
   inactivePlayers: Player[];
+  /**
+   * How many "remaining players continue" cuts each registered player has made (0 if none).
+   * Players on a higher level always rank above lower ones, and are paired separately.
+   */
+  cutLevels: CutLevels;
+  /** The players who made each cut, in cut order. */
+  cutQualifierIds: number[][];
+}
+
+/** Player ID → cut level. Missing players are level 0. */
+export type CutLevels = Record<number, number>;
+
+/** The highest cut level among these players: the group still competing in the top cut. */
+export function topCutLevel(players: Player[], levels: CutLevels): number {
+  return Math.max(0, ...players.map((p) => levels[p.id] ?? 0));
 }
 
 /**
@@ -14,6 +29,8 @@ export interface ScoreResult {
  */
 export function calculateScores(t: Tournament): ScoreResult {
   const scores: Scores = {};
+  const cutLevels: CutLevels = {};
+  const cutQualifierIds: number[][] = [];
   let registered = [...t.registeredPlayers];
   let inactive = [...t.inactivePlayers];
   let remaining = [...t.tables];
@@ -37,51 +54,30 @@ export function calculateScores(t: Tournament): ScoreResult {
     }
     remaining = kept;
 
-    const cutScores = registered.map((p) => scores[p.id] ?? 0);
-    if (cutScores.length <= cut.playerCount) continue;
+    // Only the players still in the top group (who made every earlier cut) compete for this one.
+    const level = topCutLevel(registered, cutLevels);
+    const candidates = registered.filter((p) => (cutLevels[p.id] ?? 0) === level);
+    const postCutIds = cutQualifiers(candidates, scores, cut);
+    cutQualifierIds.push(postCutIds);
+    // A cut no bigger than the field changes nothing (kept as in the original desktop app).
+    if (!cut.remainingContinue && candidates.length <= cut.playerCount) continue;
 
-    cutScores.sort((a, b) => b - a);
-
-    let hasTie = false;
-    let tiedScore = 0;
-    if (cutScores[cut.playerCount - 1] === cutScores[cut.playerCount]) {
-      hasTie = true;
-      tiedScore = cutScores[cut.playerCount - 1];
-    }
-    const qualifying = cutScores.slice(0, cut.playerCount);
-
-    const postCutIds: number[] = [];
-    const tiedIds: number[] = [];
-    for (const p of registered) {
-      const s = scores[p.id] ?? 0;
-      if (qualifying.includes(s) && (!hasTie || s > tiedScore)) postCutIds.push(p.id);
-      else if (hasTie && s === tiedScore) tiedIds.push(p.id);
-    }
-
-    // Break ties using the saved pre-cut priority list, if there is one.
-    let tieIndex = 0;
-    while (postCutIds.length < cut.playerCount && tieIndex < tiedIds.length) {
-      if (cut.tiebreakPriority.includes(tiedIds[tieIndex])) {
-        postCutIds.push(tiedIds[tieIndex]);
-        tiedIds.splice(tieIndex, 1);
-      } else {
-        tieIndex += 1;
+    if (cut.remainingContinue) {
+      for (const id of postCutIds) cutLevels[id] = level + 1;
+    } else {
+      const stillIn: Player[] = [];
+      for (const p of registered) {
+        if (postCutIds.includes(p.id)) stillIn.push(p);
+        else inactive.push(p);
       }
+      registered = stillIn;
     }
-    // Still unresolved: everyone tied gets in, and the organizer has to resolve it manually.
-    if (postCutIds.length < cut.playerCount) postCutIds.push(...tiedIds);
-
-    const stillIn: Player[] = [];
-    for (const p of registered) {
-      if (postCutIds.includes(p.id)) stillIn.push(p);
-      else inactive.push(p);
-    }
-    registered = stillIn;
 
     if (cut.scoreModification !== ScoreModification.None) {
-      for (const key of Object.keys(scores)) {
-        const id = +key;
-        scores[id] = cut.scoreModification === ScoreModification.Halved ? scores[id] / 2 : 0;
+      // Players who continue below the cut keep their scores.
+      const modified = cut.remainingContinue ? postCutIds : Object.keys(scores).map(Number);
+      for (const id of modified) {
+        scores[id] = cut.scoreModification === ScoreModification.Halved ? (scores[id] ?? 0) / 2 : 0;
       }
     }
   }
@@ -93,7 +89,48 @@ export function calculateScores(t: Tournament): ScoreResult {
     }
   }
 
-  return { scores, registeredPlayers: registered, inactivePlayers: inactive };
+  return { scores, registeredPlayers: registered, inactivePlayers: inactive, cutLevels, cutQualifierIds };
+}
+
+/**
+ * Which candidates make the cut. Score ties at the cut line are broken by the cut's saved
+ * tiebreak priority; ties it doesn't settle let everyone tied through, for the organizer to resolve.
+ */
+function cutQualifiers(candidates: Player[], scores: Scores, cut: Cut): number[] {
+  const cutScores = candidates.map((p) => scores[p.id] ?? 0);
+  if (cutScores.length <= cut.playerCount) return candidates.map((p) => p.id);
+
+  cutScores.sort((a, b) => b - a);
+
+  let hasTie = false;
+  let tiedScore = 0;
+  if (cutScores[cut.playerCount - 1] === cutScores[cut.playerCount]) {
+    hasTie = true;
+    tiedScore = cutScores[cut.playerCount - 1];
+  }
+  const qualifying = cutScores.slice(0, cut.playerCount);
+
+  const postCutIds: number[] = [];
+  const tiedIds: number[] = [];
+  for (const p of candidates) {
+    const s = scores[p.id] ?? 0;
+    if (qualifying.includes(s) && (!hasTie || s > tiedScore)) postCutIds.push(p.id);
+    else if (hasTie && s === tiedScore) tiedIds.push(p.id);
+  }
+
+  // Break ties using the saved pre-cut priority list, if there is one.
+  let tieIndex = 0;
+  while (postCutIds.length < cut.playerCount && tieIndex < tiedIds.length) {
+    if (cut.tiebreakPriority.includes(tiedIds[tieIndex])) {
+      postCutIds.push(tiedIds[tieIndex]);
+      tiedIds.splice(tieIndex, 1);
+    } else {
+      tieIndex += 1;
+    }
+  }
+  // Still unresolved: everyone tied gets in, and the organizer has to resolve it manually.
+  if (postCutIds.length < cut.playerCount) postCutIds.push(...tiedIds);
+  return postCutIds;
 }
 
 /**

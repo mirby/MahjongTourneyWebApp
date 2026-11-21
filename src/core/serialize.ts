@@ -48,6 +48,7 @@ const serializeCut = (c: Cut): Json => ({
   start_round: c.startRound,
   end_round: c.endRound,
   tiebreak_priority: c.tiebreakPriority,
+  remaining_continue: c.remainingContinue,
 });
 
 const deserializeCut = (d: Json): Cut => ({
@@ -56,6 +57,7 @@ const deserializeCut = (d: Json): Cut => ({
   startRound: d.start_round,
   endRound: d.end_round,
   tiebreakPriority: d.tiebreak_priority ?? [],
+  remainingContinue: d.remaining_continue ?? false,
 });
 
 const serializeSettings = (s: TournamentSettings): Json => ({

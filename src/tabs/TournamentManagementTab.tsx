@@ -29,6 +29,7 @@ function CutCreation({ onDone }: { onDone: () => void }) {
 
   const [playerCount, setPlayerCount] = useState(8);
   const [modification, setModification] = useState<ScoreModification>(ScoreModification.None);
+  const [remainingContinue, setRemainingContinue] = useState(false);
   const [tieError, setTieError] = useState(false);
 
   if (maxCutRound >= maxRoundPresent) {
@@ -65,6 +66,14 @@ function CutCreation({ onDone }: { onDone: () => void }) {
           <option value={ScoreModification.Zero}>Zeroed</option>
         </select>
       </Row>
+      <Row label="Remaining Players Continue">
+        <input
+          type="checkbox"
+          checked={remainingContinue}
+          onChange={(e) => setRemainingContinue(e.target.checked)}
+          title="Players who miss the cut keep playing, with their scores unchanged. Players who make the cut always rank above them."
+        />
+      </Row>
       <div className="btn-row">
         <button
           className="primary"
@@ -75,6 +84,7 @@ function CutCreation({ onDone }: { onDone: () => void }) {
               startRound: maxCutRound + 1,
               endRound: maxRoundPresent,
               tiebreakPriority: [],
+              remainingContinue,
             };
             if (createCut(cut)) setTieError(true);
             else onDone();
@@ -100,7 +110,7 @@ function CutManagement({ onDone }: { onDone: () => void }) {
       <div className="tree">
         <table>
           <thead>
-            <tr><th>Player Count</th><th>Score Modification</th><th>Rounds</th></tr>
+            <tr><th>Player Count</th><th>Score Modification</th><th>Rounds</th><th>Remaining Continue</th></tr>
           </thead>
           <tbody>
             {cuts.map((cut, i) => (
@@ -108,6 +118,7 @@ function CutManagement({ onDone }: { onDone: () => void }) {
                 <td>{cut.playerCount}</td>
                 <td>{MODIFICATION_LABEL[cut.scoreModification]}</td>
                 <td>{cut.startRound}-{cut.endRound}</td>
+                <td>{cut.remainingContinue ? 'Yes' : 'No'}</td>
               </tr>
             ))}
           </tbody>
@@ -175,6 +186,7 @@ function CsvExport({ onDone }: { onDone: () => void }) {
 function GoogleSheets({ onDone }: { onDone: () => void }) {
   const tournament = useStore((s) => s.tournament);
   const scores = useStore((s) => s.scores);
+  const cutLevels = useStore((s) => s.cutLevels);
   const playersById = useStore((s) => s.playersById);
   const setScriptId = useStore((s) => s.setScriptId);
   const replaceTables = useStore((s) => s.replaceTables);
@@ -199,7 +211,7 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
   };
 
   const doExport = () =>
-    run(() => exportToSheets(scriptId, buildExportPayload(tournament, scores, playersById)));
+    run(() => exportToSheets(scriptId, buildExportPayload(tournament, scores, playersById, cutLevels)));
 
   const doImport = () =>
     run(async () => {
