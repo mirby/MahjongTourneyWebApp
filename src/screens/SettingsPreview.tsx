@@ -59,6 +59,7 @@ export function SettingsPreview({ tournament: t, onConfirm, onCancel }: Props) {
         )}
 
         <Setting name="Tiebreak">{tiebreakLabel(s.tiebreakStrategy)}</Setting>
+        <Setting name="WRC Tiebreaks for Score">{s.wrcTiebreaks ? 'Yes' : 'No'}</Setting>
         <Setting name="Start">{s.startPoints}</Setting>
         <Setting name="Return">{s.returnPoints}</Setting>
         <Setting name="Oka"><Values values={s.oka} /></Setting>

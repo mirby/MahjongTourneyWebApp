@@ -69,6 +69,8 @@ const serializeSettings = (s: TournamentSettings): Json => ({
   floating_uma_2: s.floatingUma2,
   floating_uma_3: s.floatingUma3,
   tiebreak_strategy: s.tiebreakStrategy,
+  // Not in the Godot format; older saves don't have it, so they rank by score alone.
+  wrc_tiebreaks: s.wrcTiebreaks,
   start_points: s.startPoints,
   return_points: s.returnPoints,
   oka: s.oka,
@@ -95,6 +97,7 @@ function deserializeSettings(d: Json): TournamentSettings {
     floatingUma2: d.floating_uma_2 ?? base.floatingUma2,
     floatingUma3: d.floating_uma_3 ?? base.floatingUma3,
     tiebreakStrategy: d.tiebreak_strategy ?? base.tiebreakStrategy,
+    wrcTiebreaks: d.wrc_tiebreaks ?? base.wrcTiebreaks,
     startPoints: d.start_points ?? base.startPoints,
     returnPoints: d.return_points ?? base.returnPoints,
     oka: d.oka ?? base.oka,

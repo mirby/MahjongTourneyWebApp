@@ -90,6 +90,11 @@ export interface TournamentSettings {
   /** Unused for sanma. */
   floatingUma3: number[];
   tiebreakStrategy: TiebreakStrategy;
+  /**
+   * Break equal tournament scores WRC style: most 1st places, then fewest last places, then
+   * highest scoring hanchan. Off: players are ranked by score alone and equal scores share a rank.
+   */
+  wrcTiebreaks: boolean;
   startPoints: number;
   returnPoints: number;
   oka: number[];
@@ -115,6 +120,7 @@ export function defaultSettings(): TournamentSettings {
     floatingUma2: [15, 5, 0, -20],
     floatingUma3: [20, 0, -5, -15],
     tiebreakStrategy: TiebreakStrategy.WindOrder,
+    wrcTiebreaks: false,
     startPoints: 25000,
     returnPoints: 30000,
     oka: [20, 0, 0, 0],

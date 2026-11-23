@@ -54,6 +54,7 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
   const [floating2, setFloating2] = useState(YONMA_UMA.floating2);
   const [floating3, setFloating3] = useState(YONMA_UMA.floating3);
   const [tiebreak, setTiebreak] = useState<TiebreakStrategy>(d.tiebreakStrategy);
+  const [wrcTiebreaks, setWrcTiebreaks] = useState(d.wrcTiebreaks);
   const [startPoints, setStartPoints] = useState(d.startPoints);
   const [returnPoints, setReturnPoints] = useState(d.returnPoints);
   const [oka, setOka] = useState(YONMA_UMA.oka);
@@ -122,6 +123,7 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
       floatingUma2: floating2,
       floatingUma3: floating3,
       tiebreakStrategy: tiebreak,
+      wrcTiebreaks,
       startPoints,
       returnPoints,
       oka,
@@ -189,6 +191,13 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
               <option value={TiebreakStrategy.Split}>Split Uma</option>
             </select>
           </Row>
+          <Row label="Use WRC Tiebreaks for Score">
+            <input type="checkbox" checked={wrcTiebreaks} onChange={(e) => setWrcTiebreaks(e.target.checked)} />
+          </Row>
+          <div className="setting-hint">
+            Players on the same total score are ranked by most 1st places, then fewest 4th places, then
+            highest scoring hanchan. Unchecked, they are ranked by score alone and share a rank.
+          </div>
           <Row label="Start"><NumericInput value={startPoints} onChange={setStartPoints} /></Row>
           <Row label="Return"><NumericInput value={returnPoints} onChange={setReturnPoints} /></Row>
           <UmaInputs title="Oka" values={oka} count={umaCount} onChange={setOka} />

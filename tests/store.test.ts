@@ -149,6 +149,7 @@ describe('tournament flow through the store', () => {
   });
 
   it('breaks a score tie at the cut line with the standings tiebreaks', () => {
+    useStore.setState((st) => ({ tournament: { ...st.tournament, settings: { ...st.tournament.settings, wrcTiebreaks: true } } }));
     const round = (tables: [number[], number[]][]) => {
       useStore.getState().addRound(tables.map(([ids], i) => newTable({ tableId: i + 1, playerIds: ids, playerSeats: [0, 1, 2, 3] })));
       const r = useStore.getState().tournament.nextRound - 1;
@@ -170,6 +171,26 @@ describe('tournament flow through the store', () => {
     });
     expect(tieProblem).toBe(false);
     expect(useStore.getState().tournament.registeredPlayers.map((p) => p.id)).toEqual([1, 2, 6]);
+  });
+
+  it('without WRC tiebreaks, lets everyone tied at the cut line through and reports it', () => {
+    // Same scores as the test above: Players 1 and 5 tie for 3rd.
+    const round = (tables: [number[], number[]][]) => {
+      useStore.getState().addRound(tables.map(([ids], i) => newTable({ tableId: i + 1, playerIds: ids, playerSeats: [0, 1, 2, 3] })));
+      const r = useStore.getState().tournament.nextRound - 1;
+      tables.forEach(([ids, points], i) => {
+        useStore.getState().updateTable(
+          newTable({ roundId: r, tableId: i + 1, playerIds: ids, playerSeats: [0, 1, 2, 3], finalPoints: points, penalties: [0, 0, 0, 0] }),
+        );
+      });
+    };
+    round([[[1, 2, 3, 4], [40000, 30000, 20000, 10000]], [[5, 6, 7, 8], [35000, 32000, 23000, 10000]]]);
+    round([[[1, 6, 7, 4], [20000, 45000, 25000, 10000]], [[5, 2, 3, 8], [25000, 40000, 28000, 7000]]]);
+    const tieProblem = useStore.getState().createCut({
+      playerCount: 3, scoreModification: ScoreModification.None, startRound: 1, endRound: 2, tiebreakPriority: [], remainingContinue: false,
+    });
+    expect(tieProblem).toBe(true);
+    expect(useStore.getState().tournament.registeredPlayers.map((p) => p.id)).toEqual([1, 2, 5, 6]);
   });
 
   it('still reports a cut tie that no tiebreak separates', () => {

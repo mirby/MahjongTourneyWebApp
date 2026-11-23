@@ -31,33 +31,35 @@ export function tablePlacements(table: Table, settings: TournamentSettings): num
 }
 
 export interface TiebreakStats {
-  /** Mean placement over completed games; Infinity if the player has none. Lower is better. */
-  averagePlacement: number;
+  /** Games finished in 1st place. Higher is better. */
+  firsts: number;
+  /** Games finished in last place (4th, or 3rd in sanma). Lower is better. */
+  lasts: number;
   /** Highest raw final table points from a single game; -Infinity if the player has none. */
   bestGamePoints: number;
 }
 
-/** Placement and best-game stats for every player who appears in a completed table. */
+/**
+ * Placement and best-game stats for every player who appears in a completed table.
+ * Only outright places count: under the Split tiebreak strategy, players sharing 1st
+ * (or last) get an in-between placement (e.g. 1.5), which is neither.
+ */
 export function tiebreakStats(tables: Table[], settings: TournamentSettings): Record<number, TiebreakStats> {
-  const acc: Record<number, { placeSum: number; games: number; best: number }> = {};
+  const result: Record<number, TiebreakStats> = {};
   for (const table of tables) {
     const placements = tablePlacements(table, settings);
     if (placements.length === 0) continue;
     table.playerIds.forEach((id, i) => {
-      const a = (acc[id] ??= { placeSum: 0, games: 0, best: -Infinity });
-      a.placeSum += placements[i];
-      a.games += 1;
-      a.best = Math.max(a.best, table.finalPoints[i]);
+      const s = (result[id] ??= { firsts: 0, lasts: 0, bestGamePoints: -Infinity });
+      if (placements[i] === 1) s.firsts += 1;
+      if (placements[i] === placements.length) s.lasts += 1;
+      s.bestGamePoints = Math.max(s.bestGamePoints, table.finalPoints[i]);
     });
-  }
-  const result: Record<number, TiebreakStats> = {};
-  for (const [id, a] of Object.entries(acc)) {
-    result[+id] = { averagePlacement: a.placeSum / a.games, bestGamePoints: a.best };
   }
   return result;
 }
 
-const NO_STATS: TiebreakStats = { averagePlacement: Infinity, bestGamePoints: -Infinity };
+const NO_STATS: TiebreakStats = { firsts: 0, lasts: 0, bestGamePoints: -Infinity };
 
 // Scores and averages come from float arithmetic, so treat near-equal values as equal.
 const EPSILON = 1e-9;
@@ -65,11 +67,15 @@ const differ = (a: number, b: number) =>
   a === b ? false : !Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a - b) > EPSILON;
 
 export interface Standing {
-  /** Displayed rank: the same as position, so score ties are shown already broken (1, 2, 3, ...). */
+  /**
+   * Displayed rank. With WRC tiebreaks, the same as position (ties are shown already broken:
+   * 1, 2, 3, ...). Without, players on equal scores share a rank (1, 1, 3, ...).
+   */
   rank: number;
   /**
    * Position in the standings order (1-based, unique): players in a top cut first, then by
-   * total score, best average placement, highest raw table points in a single game, Player ID.
+   * total score, then (with WRC tiebreaks) most 1st places, fewest last places and highest raw
+   * table points in a single game, then Player ID.
    */
   position: number;
 }
@@ -83,8 +89,8 @@ function compareKeys(a: number[], b: number[], upTo = a.length) {
 }
 
 /**
- * Players in standings order: cut level (players in a top cut first), then score, then best
- * average placement, then best game, then Player ID.
+ * Players in standings order: cut level (players in a top cut first), then score, then (with
+ * WRC tiebreaks on) most 1st places, fewest last places and best game, then Player ID.
  */
 function sortedRows(
   players: Player[],
@@ -93,11 +99,15 @@ function sortedRows(
   settings: TournamentSettings,
   levels: CutLevels,
 ): Row[] {
-  const stats = tiebreakStats(tables, settings);
+  const stats = settings.wrcTiebreaks ? tiebreakStats(tables, settings) : {};
   const rows = players.map((p) => {
-    const s = stats[p.id] ?? NO_STATS;
     // Each key is "higher is better".
-    return { id: p.id, key: [levels[p.id] ?? 0, scores[p.id] ?? 0, -s.averagePlacement, s.bestGamePoints] };
+    const key = [levels[p.id] ?? 0, scores[p.id] ?? 0];
+    if (settings.wrcTiebreaks) {
+      const s = stats[p.id] ?? NO_STATS;
+      key.push(s.firsts, -s.lasts, s.bestGamePoints);
+    }
+    return { id: p.id, key };
   });
   return rows.sort((a, b) => compareKeys(a.key, b.key) || a.id - b.id);
 }
@@ -112,7 +122,10 @@ export function computeStandings(
   const rows = sortedRows(players, scores, tables, settings, levels);
   const result: Record<number, Standing> = {};
   rows.forEach((r, i) => {
-    result[r.id] = { rank: i + 1, position: i + 1 };
+    // Without WRC tiebreaks nothing separates equal scores, so they share a rank.
+    const prev = rows[i - 1];
+    const tied = !settings.wrcTiebreaks && prev !== undefined && compareKeys(r.key, prev.key) === 0;
+    result[r.id] = { rank: tied ? result[prev.id].rank : i + 1, position: i + 1 };
   });
   return result;
 }
@@ -121,7 +134,8 @@ export function computeStandings(
  * The players who make a cut of `count`, using the same tiebreaks as the standings.
  * Pass only the players competing for the cut (those in the current top group).
  * Players still tied on every tiebreak across the cut line are left out, so the cut
- * reports the tie instead of choosing between them by Player ID.
+ * reports the tie instead of choosing between them by Player ID. (Without WRC tiebreaks,
+ * that is everyone on the score at the cut line, as in the original desktop app.)
  */
 export function cutQualifiers(
   players: Player[],
