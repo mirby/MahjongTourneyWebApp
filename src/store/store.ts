@@ -6,6 +6,11 @@ import { Cut, newTournament, Player, Scores, Table, Tournament } from '../core/t
 
 const AUTOSAVE_KEY = 'mahjong-tournament-autosave';
 
+function withoutKey(record: Record<number, number>, key: number): Record<number, number> {
+  const { [key]: _, ...rest } = record;
+  return rest;
+}
+
 function indexPlayers(t: Tournament): Record<number, Player> {
   const map: Record<number, Player> = {};
   for (const p of t.registeredPlayers) map[p.id] = p;
@@ -142,6 +147,7 @@ export const useStore = create<StoreState>((set, get) => ({
         ...s.tournament,
         inactivePlayers: s.tournament.inactivePlayers.filter((p) => p.id !== id),
         registeredPlayers: [...s.tournament.registeredPlayers, player].sort((a, b) => a.id - b.id),
+        withdrawnAt: withoutKey(s.tournament.withdrawnAt, id),
       };
       return { tournament };
     }),
@@ -154,6 +160,7 @@ export const useStore = create<StoreState>((set, get) => ({
         ...s.tournament,
         registeredPlayers: s.tournament.registeredPlayers.filter((p) => p.id !== id),
         inactivePlayers: [...s.tournament.inactivePlayers, player].sort((a, b) => a.id - b.id),
+        withdrawnAt: { ...s.tournament.withdrawnAt, [id]: s.tournament.cuts.length },
       };
       return { tournament };
     }),
@@ -190,13 +197,18 @@ export const useStore = create<StoreState>((set, get) => ({
     set((s) => {
       const cuts = s.tournament.cuts.filter((_, i) => i !== index);
       let { registeredPlayers, inactivePlayers } = s.tournament;
+      // Players who left after the deleted cut now left one cut earlier.
+      const withdrawnAt: Record<number, number> = {};
+      for (const [id, n] of Object.entries(s.tournament.withdrawnAt)) withdrawnAt[+id] = n > index ? n - 1 : n;
       // With cuts remaining, the recalculation re-applies them from scratch. With none left,
-      // nothing would bring the cut players back, so restore everyone here.
+      // nothing would bring the cut players back, so restore everyone here except players
+      // who were deactivated by hand.
       if (cuts.length === 0) {
-        registeredPlayers = [...registeredPlayers, ...inactivePlayers].sort((a, b) => a.id - b.id);
-        inactivePlayers = [];
+        const all = [...registeredPlayers, ...inactivePlayers].sort((a, b) => a.id - b.id);
+        registeredPlayers = all.filter((p) => withdrawnAt[p.id] === undefined);
+        inactivePlayers = all.filter((p) => withdrawnAt[p.id] !== undefined);
       }
-      return recalculated({ ...s.tournament, cuts, registeredPlayers, inactivePlayers });
+      return recalculated({ ...s.tournament, cuts, registeredPlayers, inactivePlayers, withdrawnAt });
     }),
 
   setScriptId: (id) =>

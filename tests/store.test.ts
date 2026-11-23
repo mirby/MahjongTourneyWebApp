@@ -316,3 +316,66 @@ describe('cuts where the remaining players continue', () => {
     expect(deserializeTournament({ ...serializeTournament(s.tournament), cuts: [old] }).cuts[0].remainingContinue).toBe(false);
   });
 });
+
+describe('players deactivated by hand', () => {
+  beforeEach(() => {
+    freshTournament();
+    useStore.getState().addRound([
+      newTable({ tableId: 1, playerIds: [1, 2, 3, 4], playerSeats: [0, 1, 2, 3] }),
+      newTable({ tableId: 2, playerIds: [5, 6, 7, 8], playerSeats: [0, 1, 2, 3] }),
+    ]);
+    const points = [[50000, 30000, 15000, 5000], [40000, 30000, 20000, 10000]];
+    useStore.getState().tournament.tables.forEach((t, i) =>
+      useStore.getState().updateTable({ ...t, finalPoints: points[i], penalties: [0, 0, 0, 0] }),
+    );
+  });
+  const cut = (playerCount: number, remainingContinue: boolean) =>
+    useStore.getState().createCut({
+      playerCount, scoreModification: ScoreModification.None, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue,
+    });
+  const ids = (players: { id: number }[]) => players.map((p) => p.id).sort((a, b) => a - b);
+
+  it('stay inactive through a cut where the remaining players continue', () => {
+    useStore.getState().deactivatePlayer(8);
+    useStore.getState().deactivatePlayer(1); // the leader: doesn't take a place in the cut
+    cut(4, true);
+    // A later recalculation (entering a score) must not bring them back either.
+    const t = useStore.getState().tournament.tables[0];
+    useStore.getState().updateTable({ ...t });
+    const s = useStore.getState();
+    expect(ids(s.tournament.inactivePlayers)).toEqual([1, 8]);
+    expect(ids(s.tournament.registeredPlayers)).toEqual([2, 3, 4, 5, 6, 7]);
+    expect(Object.keys(s.cutLevels).map(Number).sort()).toEqual([2, 5, 6, 7]);
+  });
+
+  it('stay inactive through a normal cut, and leaving later does not change the cut', () => {
+    useStore.getState().deactivatePlayer(8);
+    expect(cut(4, false)).toBe(false);
+    expect(ids(useStore.getState().tournament.registeredPlayers)).toEqual([1, 2, 5, 6]);
+    // A finalist drops out after the cut: nobody is promoted in their place.
+    useStore.getState().deactivatePlayer(6);
+    useStore.getState().replaceTables(useStore.getState().tournament.tables);
+    const s = useStore.getState();
+    expect(ids(s.tournament.registeredPlayers)).toEqual([1, 2, 5]);
+    expect(ids(s.tournament.inactivePlayers)).toEqual([3, 4, 6, 7, 8]);
+
+    // Deleting the cut brings back the players it removed, but not those who left.
+    s.deleteCut(0);
+    expect(ids(useStore.getState().tournament.registeredPlayers)).toEqual([1, 2, 3, 4, 5, 7]);
+  });
+
+  it('come back when activated, and are recognised in older saves', () => {
+    useStore.getState().deactivatePlayer(8);
+    cut(4, false);
+    useStore.getState().activatePlayer(8);
+    expect(useStore.getState().tournament.withdrawnAt).toEqual({});
+
+    useStore.getState().deactivatePlayer(5); // a finalist, after the cut
+    const saved = serializeTournament(useStore.getState().tournament);
+    const { withdrawn_at: _, ...old } = saved;
+    // Player 5 is the only inactive player the cut doesn't explain.
+    expect(deserializeTournament(old).withdrawnAt).toEqual({ 5: 1 });
+    expect(deserializeTournament(JSON.parse(JSON.stringify(saved))).withdrawnAt).toEqual({ 5: 1 });
+  });
+});
+

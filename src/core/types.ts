@@ -142,6 +142,12 @@ export interface Tournament {
   nextRound: number;
   /** Round number -> Pairing Blocks setting used to create it. Missing for rounds from older saves. */
   roundPairingBlocks: Record<number, number>;
+  /**
+   * Players moved to Inactive by hand on the Player Management tab: Player ID -> how many cuts
+   * existed when they were deactivated. They stay inactive whatever the cuts say, and only
+   * compete in the cuts made before they left (so leaving doesn't change an earlier cut).
+   */
+  withdrawnAt: Record<number, number>;
 }
 
 export function newTournament(): Tournament {
@@ -154,6 +160,7 @@ export function newTournament(): Tournament {
     cuts: [],
     nextRound: 1,
     roundPairingBlocks: {},
+    withdrawnAt: {},
   };
 }
 

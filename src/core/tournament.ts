@@ -35,12 +35,16 @@ export function calculateScores(t: Tournament): ScoreResult {
   let inactive = [...t.inactivePlayers];
   let remaining = [...t.tables];
 
+  // Cuts are re-applied from scratch, so start from every player. Players deactivated by hand
+  // are set aside again at the end.
+  const withdrawnAt = t.withdrawnAt ?? {};
+  const isWithdrawn = (id: number) => withdrawnAt[id] !== undefined;
   if (t.cuts.length > 0) {
     registered = [...registered, ...inactive];
     inactive = [];
   }
 
-  for (const cut of t.cuts) {
+  for (const [cutIndex, cut] of t.cuts.entries()) {
     const kept = [];
     for (const table of remaining) {
       if (cut.startRound <= table.roundId && table.roundId <= cut.endRound) {
@@ -55,8 +59,10 @@ export function calculateScores(t: Tournament): ScoreResult {
     remaining = kept;
 
     // Only the players still in the top group (who made every earlier cut) compete for this one.
-    const level = topCutLevel(registered, cutLevels);
-    const candidates = registered.filter((p) => (cutLevels[p.id] ?? 0) === level);
+    // A player who left before this cut was made doesn't compete for it.
+    const competing = registered.filter((p) => !(isWithdrawn(p.id) && cutIndex >= withdrawnAt[p.id]));
+    const level = topCutLevel(competing, cutLevels);
+    const candidates = competing.filter((p) => (cutLevels[p.id] ?? 0) === level);
     const postCutIds = cutQualifiers(candidates, scores, cut);
     cutQualifierIds.push(postCutIds);
     // A cut no bigger than the field changes nothing (kept as in the original desktop app).
@@ -87,6 +93,11 @@ export function calculateScores(t: Tournament): ScoreResult {
     for (const [id, s] of Object.entries(tableScores)) {
       scores[+id] = (scores[+id] ?? 0) + s;
     }
+  }
+
+  if (t.cuts.length > 0) {
+    inactive = [...inactive, ...registered.filter((p) => isWithdrawn(p.id))].sort((a, b) => a.id - b.id);
+    registered = registered.filter((p) => !isWithdrawn(p.id));
   }
 
   return { scores, registeredPlayers: registered, inactivePlayers: inactive, cutLevels, cutQualifierIds };

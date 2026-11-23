@@ -1,4 +1,5 @@
 import { decodeGodotVar, looksLikeJson } from './godotVar';
+import { calculateScores } from './tournament';
 import {
   Cut,
   defaultSettings,
@@ -140,6 +141,7 @@ export function serializeTournament(t: Tournament): Json {
     next_round: t.nextRound,
     // Not in the Godot format; older saves simply won't have it.
     round_pairing_blocks: t.roundPairingBlocks,
+    withdrawn_at: t.withdrawnAt,
   };
 }
 
@@ -147,7 +149,7 @@ export function deserializeTournament(d: Json): Tournament {
   if (!d || typeof d !== 'object' || !Array.isArray(d.registered_players) || !d.settings) {
     throw new Error('This file does not look like a tournament save.');
   }
-  return {
+  const t: Tournament = {
     name: d.name ?? '',
     registeredPlayers: d.registered_players.map(deserializePlayer),
     inactivePlayers: (d.inactive_players ?? []).map(deserializePlayer),
@@ -156,5 +158,28 @@ export function deserializeTournament(d: Json): Tournament {
     cuts: (d.cuts ?? []).map(deserializeCut),
     nextRound: d.next_round ?? 1,
     roundPairingBlocks: deserializeRoundPairingBlocks(d.round_pairing_blocks),
+    withdrawnAt: {},
   };
+  if (d.withdrawn_at && typeof d.withdrawn_at === 'object') {
+    for (const [id, cuts] of Object.entries(d.withdrawn_at)) t.withdrawnAt[+id] = Number(cuts);
+  } else {
+    t.withdrawnAt = inferWithdrawn(t);
+  }
+  return t;
+}
+
+/**
+ * Older saves don't record who was deactivated by hand. Any inactive player the cuts
+ * wouldn't have removed must have been, so count them as having left after the last cut.
+ */
+function inferWithdrawn(t: Tournament): Record<number, number> {
+  const result: Record<number, number> = {};
+  if (t.cuts.length === 0) {
+    for (const p of t.inactivePlayers) result[p.id] = 0;
+    return result;
+  }
+  const { registeredPlayers } = calculateScores(t);
+  const stillIn = new Set(registeredPlayers.map((p) => p.id));
+  for (const p of t.inactivePlayers) if (stillIn.has(p.id)) result[p.id] = t.cuts.length;
+  return result;
 }
