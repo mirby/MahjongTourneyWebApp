@@ -185,18 +185,19 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
             </>
           )}
 
-          <Row label="Tiebreak Strategy">
+          <Row label="Single Hanchan Tiebreak Strategy">
             <select value={tiebreak} onChange={(e) => setTiebreak(Number(e.target.value))}>
-              <option value={TiebreakStrategy.WindOrder}>Wind Order</option>
               <option value={TiebreakStrategy.Split}>Split Uma</option>
+              <option value={TiebreakStrategy.WindOrder}>Wind Order</option>
             </select>
           </Row>
-          <Row label="Use WRC Tiebreaks for Score">
+          <Row label="Use WRC Tiebreaks for Overall Score">
             <input type="checkbox" checked={wrcTiebreaks} onChange={(e) => setWrcTiebreaks(e.target.checked)} />
           </Row>
           <div className="setting-hint">
-            Players on the same total score are ranked by most 1st places, then fewest 4th places, then
-            highest scoring hanchan. Unchecked, they are ranked by score alone and share a rank.
+            Players with the same total score are ranked by most 1st places, then fewest 4th places, then
+            highest scoring hanchan. If left unchecked, they are ranked by score alone and share a rank. Organizers can
+            use their own tiebreak strategy.
           </div>
           <Row label="Start"><NumericInput value={startPoints} onChange={setStartPoints} /></Row>
           <Row label="Return"><NumericInput value={returnPoints} onChange={setReturnPoints} /></Row>
