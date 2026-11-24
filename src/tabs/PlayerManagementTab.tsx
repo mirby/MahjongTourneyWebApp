@@ -22,7 +22,7 @@ export function PlayerManagementTab() {
     const nextId = Math.max(0, ...Object.keys(playersById).map(Number)) + 1;
     updateInactivePlayers([
       ...tournament.inactivePlayers,
-      { id: nextId, name: `Freed Jyanshi ${nextId}`, affiliation: 'Riichi Nomi NYC' },
+      { id: nextId, name: `Freed Jyanshi ${nextId}`, affiliation: 'Mahjong Club' },
     ]);
   };
 

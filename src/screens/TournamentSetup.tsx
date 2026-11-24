@@ -18,7 +18,7 @@ interface Props {
 }
 
 const DEFAULT_NAME = 'Freed Jyanshi';
-const DEFAULT_AFFILIATION = 'Riichi Nomi NYC';
+const DEFAULT_AFFILIATION = 'Mahjong Club';
 
 const YONMA_UMA = {
   fixed: [30, 10, -10, -30],
@@ -53,7 +53,7 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
   const [floating1, setFloating1] = useState(YONMA_UMA.floating1);
   const [floating2, setFloating2] = useState(YONMA_UMA.floating2);
   const [floating3, setFloating3] = useState(YONMA_UMA.floating3);
-  const [tiebreak, setTiebreak] = useState<TiebreakStrategy>(d.tiebreakStrategy);
+  const [tiebreak, setTiebreak] = useState<TiebreakStrategy>(TiebreakStrategy.Split);
   const [wrcTiebreaks, setWrcTiebreaks] = useState(d.wrcTiebreaks);
   const [startPoints, setStartPoints] = useState(d.startPoints);
   const [returnPoints, setReturnPoints] = useState(d.returnPoints);
