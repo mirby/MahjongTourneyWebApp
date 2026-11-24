@@ -60,7 +60,7 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
   const [oka, setOka] = useState(YONMA_UMA.oka);
   const [roundTime, setRoundTime] = useState(d.timePerRoundMinutes);
   const [riichiSticks, setRiichiSticks] = useState<RiichiSticksStrategy>(d.riichiSticksStrategy);
-  const [assignWinds, setAssignWinds] = useState(d.assignSeatWinds);
+  const [assignWinds, setAssignWinds] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [scorePerThousand, setScorePerThousand] = useState(d.scorePerThousandPoints);
   const [shuugi, setShuugi] = useState(false);
@@ -128,7 +128,7 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
       returnPoints,
       oka,
       timePerRoundMinutes: roundTime,
-      assignSeatWinds: assignWinds,
+      assignSeatWinds: advanced && assignWinds,
       riichiSticksStrategy: riichiSticks,
       advancedSettings: advanced,
       scorePerThousandPoints: advanced ? scorePerThousand : 1,
@@ -209,15 +209,15 @@ export function TournamentSetup({ onBack, onPreview }: Props) {
               <option value={RiichiSticksStrategy.First}>Give to First</option>
             </select>
           </Row>
-          <Row label="Assign Seat Winds When Generating Pairings">
-            <input type="checkbox" checked={assignWinds} onChange={(e) => setAssignWinds(e.target.checked)} />
-          </Row>
           <Row label="Advanced Settings">
             <input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} />
           </Row>
 
           {advanced && (
             <>
+              <Row label="Assign Seat Winds When Generating Pairings">
+                <input type="checkbox" checked={assignWinds} onChange={(e) => setAssignWinds(e.target.checked)} />
+              </Row>
               <Row label="Score Per 1000 Points"><NumericInput value={scorePerThousand} onChange={setScorePerThousand} /></Row>
               <Row label="Enable Shuugi">
                 <input type="checkbox" checked={shuugi} onChange={(e) => setShuugi(e.target.checked)} />
