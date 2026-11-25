@@ -187,6 +187,7 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
   const tournament = useStore((s) => s.tournament);
   const scores = useStore((s) => s.scores);
   const cutLevels = useStore((s) => s.cutLevels);
+  const cutOut = useStore((s) => s.cutOut);
   const playersById = useStore((s) => s.playersById);
   const setScriptId = useStore((s) => s.setScriptId);
   const replaceTables = useStore((s) => s.replaceTables);
@@ -211,7 +212,7 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
   };
 
   const doExport = () =>
-    run(() => exportToSheets(scriptId, buildExportPayload(tournament, scores, playersById, cutLevels)));
+    run(() => exportToSheets(scriptId, buildExportPayload(tournament, scores, playersById, cutLevels, cutOut)));
 
   const doImport = () =>
     run(async () => {

@@ -1,6 +1,6 @@
 import { isComplete } from './scoring';
-import type { CutLevels } from './tournament';
-import { Player, Scores, Table, TiebreakStrategy, TournamentSettings } from './types';
+import type { CutLevels, CutOut } from './tournament';
+import { Player, Scores, Table, TiebreakStrategy, Tournament, TournamentSettings } from './types';
 
 /**
  * Finishing placement (1 = first) for every seat of a completed table, in table order.
@@ -73,7 +73,8 @@ export interface Standing {
    */
   rank: number;
   /**
-   * Position in the standings order (1-based, unique): players in a top cut first, then by
+   * Position in the standings order (1-based, unique): players still in the tournament first,
+   * then players removed by cuts (latest cut first), each group with players in a top cut first, then by
    * total score, then (with WRC tiebreaks) most 1st places, fewest last places and highest raw
    * table points in a single game, then Player ID.
    */
@@ -81,6 +82,24 @@ export interface Standing {
 }
 
 type Row = { id: number; key: number[] };
+
+/** Everyone on the standings: the active players and the players cuts removed. */
+export function standingsPlayers(t: Tournament, cutOut: CutOut): Player[] {
+  return [...t.registeredPlayers, ...t.inactivePlayers.filter((p) => cutOut[p.id] !== undefined)];
+}
+
+/** Stage key of players no cut has removed: above any cut index. */
+const STILL_IN = Number.MAX_SAFE_INTEGER;
+
+/**
+ * Scores as the standings show them: cut-out players keep the score they had when the cut
+ * removed them (later score modifications don't apply to them).
+ */
+export function standingScores(scores: Scores, cutOut: CutOut): Scores {
+  const result = { ...scores };
+  for (const [id, out] of Object.entries(cutOut)) result[+id] = out.score;
+  return result;
+}
 
 /** Compares the first `upTo` keys, higher first; 0 if they are equal (within EPSILON). */
 function compareKeys(a: number[], b: number[], upTo = a.length) {
@@ -98,11 +117,14 @@ function sortedRows(
   tables: Table[],
   settings: TournamentSettings,
   levels: CutLevels,
+  cutOut: CutOut = {},
 ): Row[] {
   const stats = settings.wrcTiebreaks ? tiebreakStats(tables, settings) : {};
   const rows = players.map((p) => {
-    // Each key is "higher is better".
-    const key = [levels[p.id] ?? 0, scores[p.id] ?? 0];
+    // Each key is "higher is better". Players still in the tournament come first, then those
+    // removed by the latest cut, and so on; cut-out players keep their score from that cut.
+    const out = cutOut[p.id];
+    const key = [out ? out.cut : STILL_IN, levels[p.id] ?? 0, out ? out.score : (scores[p.id] ?? 0)];
     if (settings.wrcTiebreaks) {
       const s = stats[p.id] ?? NO_STATS;
       key.push(s.firsts, -s.lasts, s.bestGamePoints);
@@ -118,8 +140,9 @@ export function computeStandings(
   tables: Table[],
   settings: TournamentSettings,
   levels: CutLevels = {},
+  cutOut: CutOut = {},
 ): Record<number, Standing> {
-  const rows = sortedRows(players, scores, tables, settings, levels);
+  const rows = sortedRows(players, scores, tables, settings, levels, cutOut);
   const result: Record<number, Standing> = {};
   rows.forEach((r, i) => {
     // Without WRC tiebreaks nothing separates equal scores, so they share a rank.

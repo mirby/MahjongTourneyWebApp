@@ -21,6 +21,8 @@ interface Props {
   standings?: Record<number, Standing>;
   /** Initial sort column and direction. Defaults to Player ID ascending. */
   defaultSort?: { key: SortKey; asc: boolean };
+  /** Rows to show dimmed: players no longer in the tournament (removed by a cut). */
+  mutedIds?: Record<number, unknown>;
 }
 
 const COLUMNS: { key: SortKey; title: string }[] = [
@@ -41,6 +43,7 @@ export function PlayerList({
   onEdit,
   standings,
   defaultSort,
+  mutedIds,
 }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort?.key ?? 'id');
   const [asc, setAsc] = useState(defaultSort?.asc ?? true);
@@ -90,7 +93,8 @@ export function PlayerList({
           {rows.map(({ player, score, rank }) => (
             <tr
               key={player.id}
-              className={`selectable ${selectedId === player.id ? 'selected' : ''}`}
+              className={`selectable ${selectedId === player.id ? 'selected' : ''} ${mutedIds?.[player.id] !== undefined ? 'muted' : ''}`}
+              title={mutedIds?.[player.id] !== undefined ? 'Removed by a cut: score as of that cut' : undefined}
               onClick={(e) => { e.stopPropagation(); onSelect?.(player.id); }}
             >
               {standings && <td>{rank}</td>}

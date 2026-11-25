@@ -12,7 +12,16 @@ export interface ScoreResult {
   cutLevels: CutLevels;
   /** The players who made each cut, in cut order. */
   cutQualifierIds: number[][];
+  /** Players a cut removed from the tournament (see CutOut). */
+  cutOut: CutOut;
 }
+
+/**
+ * Player ID -> the cut that removed them (index into cuts) and their score at that moment,
+ * before the cut's score modification. The standings keep showing them with that score,
+ * below everyone who made the cut.
+ */
+export type CutOut = Record<number, { cut: number; score: number }>;
 
 /** Player ID → cut level. Missing players are level 0. */
 export type CutLevels = Record<number, number>;
@@ -31,6 +40,7 @@ export function calculateScores(t: Tournament): ScoreResult {
   const scores: Scores = {};
   const cutLevels: CutLevels = {};
   const cutQualifierIds: number[][] = [];
+  const cutOut: CutOut = {};
   let registered = [...t.registeredPlayers];
   let inactive = [...t.inactivePlayers];
   let remaining = [...t.tables];
@@ -82,7 +92,10 @@ export function calculateScores(t: Tournament): ScoreResult {
       for (const p of registered) {
         // Players sitting this cut out aren't removed by it (withdrawn players are set aside at the end).
         if (postCutIds.includes(p.id) || sitsOut(p.id)) stillIn.push(p);
-        else inactive.push(p);
+        else {
+          inactive.push(p);
+          cutOut[p.id] = { cut: cutIndex, score: scores[p.id] ?? 0 };
+        }
       }
       registered = stillIn;
     }
@@ -108,7 +121,7 @@ export function calculateScores(t: Tournament): ScoreResult {
     registered = registered.filter((p) => !isWithdrawn(p.id));
   }
 
-  return { scores, registeredPlayers: registered, inactivePlayers: inactive, cutLevels, cutQualifierIds };
+  return { scores, registeredPlayers: registered, inactivePlayers: inactive, cutLevels, cutQualifierIds, cutOut };
 }
 
 /**

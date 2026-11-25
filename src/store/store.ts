@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { deserializeTournament, serializeTournament } from '../core/serialize';
-import { calculateScores, CutLevels, roundDeleteBlocker, topCutLevel, withoutRound } from '../core/tournament';
+import { calculateScores, CutLevels, CutOut, roundDeleteBlocker, topCutLevel, withoutRound } from '../core/tournament';
 import { cutQualifiers } from '../core/standings';
 import { Cut, newTournament, Player, Scores, Table, Tournament } from '../core/types';
 
@@ -22,7 +22,7 @@ function indexPlayers(t: Tournament): Record<number, Player> {
 function recalculated(t: Tournament) {
   const r = calculateScores(t);
   const tournament: Tournament = { ...t, registeredPlayers: r.registeredPlayers, inactivePlayers: r.inactivePlayers };
-  return { tournament, scores: r.scores, cutLevels: r.cutLevels, playersById: indexPlayers(tournament) };
+  return { tournament, scores: r.scores, cutLevels: r.cutLevels, cutOut: r.cutOut, playersById: indexPlayers(tournament) };
 }
 
 interface StoreState {
@@ -32,6 +32,8 @@ interface StoreState {
   scores: Scores;
   /** Cut level of each player (see calculateScores): players in a top cut rank and pair above the rest. */
   cutLevels: CutLevels;
+  /** Players removed by cuts, with their score when removed: still shown on the standings. */
+  cutOut: CutOut;
   playersById: Record<number, Player>;
   /** Epoch ms at which the current round ends, or null when no timer is running. */
   roundEndsAt: number | null;
@@ -72,6 +74,7 @@ export const useStore = create<StoreState>((set, get) => ({
   tournament: newTournament(),
   scores: {},
   cutLevels: {},
+  cutOut: {},
   playersById: {},
   roundEndsAt: null,
   pairingBlocks: null,
@@ -83,6 +86,7 @@ export const useStore = create<StoreState>((set, get) => ({
       tournament: newTournament(),
       scores: {},
       cutLevels: {},
+      cutOut: {},
       playersById: {},
       roundEndsAt: null,
       pairingBlocks: null,
@@ -212,7 +216,7 @@ export const useStore = create<StoreState>((set, get) => ({
       registeredPlayers: r.registeredPlayers,
       inactivePlayers: r.inactivePlayers,
     };
-    set({ tournament, scores: r.scores, cutLevels: r.cutLevels, playersById: indexPlayers(tournament) });
+    set({ tournament, scores: r.scores, cutLevels: r.cutLevels, cutOut: r.cutOut, playersById: indexPlayers(tournament) });
     return qualifiers.length > cut.playerCount;
   },
 

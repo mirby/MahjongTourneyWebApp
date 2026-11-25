@@ -478,3 +478,58 @@ describe('players deactivated by hand', () => {
   });
 });
 
+
+describe('players removed by a cut on the standings', () => {
+  beforeEach(freshTournamentWithScores);
+  // Round 1 scores: P1 70, P5 60, P2 10, P6 10, P7 -20, P3 -25, P8 -50, P4 -55.
+  const cut = (playerCount: number, startRound: number, endRound: number, scoreModification: ScoreModification) =>
+    useStore.getState().createCut({
+      playerCount, scoreModification, startRound, endRound, tiebreakPriority: [], remainingContinue: false,
+    });
+  const standingsOrder = () => {
+    const s = useStore.getState();
+    const payload = buildExportPayload(s.tournament, s.scores, s.playersById, s.cutLevels, s.cutOut);
+    return payload.standings.map(([rank, id, , score]) => [rank, id, score]);
+  };
+
+  it('stay below the finalists, frozen at their score from the cut', () => {
+    cut(4, 1, 1, ScoreModification.Zero);
+    let s = useStore.getState();
+    expect(s.tournament.registeredPlayers.map((p) => p.id)).toEqual([1, 2, 5, 6]);
+    // Finalists are reset to 0; the others keep their round 1 totals, in that order.
+    expect(standingsOrder()).toEqual([
+      [1, 1, '0.0'], [1, 2, '0.0'], [1, 5, '0.0'], [1, 6, '0.0'],
+      [5, 7, '(20.0)'], [6, 3, '(25.0)'], [7, 8, '(50.0)'], [8, 4, '(55.0)'],
+    ]);
+
+    // The finalists play on; the cut-out players don't change, even if a finalist ends up lower.
+    useStore.getState().addRound([newTable({ tableId: 1, playerIds: [1, 2, 5, 6], playerSeats: [0, 1, 2, 3] })]);
+    const t = useStore.getState().tournament.tables.find((x) => x.roundId === 2)!;
+    useStore.getState().updateTable({ ...t, finalPoints: [70000, 25000, 5000, 0], penalties: [0, 0, 0, 0] });
+    s = useStore.getState();
+    expect(s.scores[6]).toBeLessThan(-55);
+    expect(standingsOrder().map(([rank, id]) => [rank, id])).toEqual([
+      [1, 1], [2, 2], [3, 5], [4, 6], [5, 7], [6, 3], [7, 8], [8, 4],
+    ]);
+    expect(standingsOrder()[4][2]).toBe('(20.0)');
+
+    // A second cut: its players rank above those from the first cut.
+    cut(2, 2, 2, ScoreModification.None);
+    expect(standingsOrder().map(([, id]) => id)).toEqual([1, 2, 5, 6, 7, 3, 8, 4]);
+    expect(useStore.getState().tournament.registeredPlayers.map((p) => p.id)).toEqual([1, 2]);
+  });
+
+  it('are not shown for players deactivated by hand or added later', () => {
+    useStore.getState().deactivatePlayer(8);
+    useStore.getState().addInactivePlayer({ id: 9, name: 'Sub', affiliation: '' });
+    cut(4, 1, 1, ScoreModification.None);
+    expect(standingsOrder().map(([, id]) => id)).toEqual([1, 5, 2, 6, 7, 3, 4]);
+  });
+
+  it('come back as normal players when the cut is deleted', () => {
+    cut(4, 1, 1, ScoreModification.Zero);
+    useStore.getState().deleteCut(0);
+    expect(useStore.getState().cutOut).toEqual({});
+    expect(standingsOrder()[0]).toEqual([1, 1, '70.0']);
+  });
+});
