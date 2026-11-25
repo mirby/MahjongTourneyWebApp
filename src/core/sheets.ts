@@ -131,14 +131,23 @@ export function applySheetScores(data: unknown, t: Tournament): ImportResult {
     table.finalShuugi = [...table.finalShuugi];
     table.penalties = [...table.penalties];
 
-    for (const score of scoreRows) {
-      const idx = table.playerIds.indexOf(score[0]);
+    // Each seat takes one row. Several seats can share an ID (substitutes are all ID 0), so a
+    // row goes to the seat in its own position if the ID matches there, else the first unused
+    // seat with that ID.
+    const used = new Set<number>();
+    for (const [row, score] of scoreRows.entries()) {
+      const id = Number(score[0]);
+      const idx =
+        table.playerIds[row] === id && !used.has(row)
+          ? row
+          : table.playerIds.findIndex((p, i) => p === id && !used.has(i));
       if (idx === -1) {
         return {
           ok: false,
           error: `Error when importing table ${tableId}: Player ${score[0]} in spreadsheet not present in software.`,
         };
       }
+      used.add(idx);
       if (table.finalPoints.length < size) table.finalPoints = new Array(size).fill(0);
       if (t.settings.shuugi && table.finalShuugi.length < size) table.finalShuugi = new Array(size).fill(0);
       if (table.penalties.length < size) table.penalties = new Array(size).fill(0);

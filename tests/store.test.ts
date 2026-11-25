@@ -235,6 +235,22 @@ describe('tournament flow through the store', () => {
     }
   });
 
+  it('imports each of several substitutes (all ID 0) at a table into their own seat', () => {
+    const t = newTournament();
+    t.nextRound = 4;
+    t.tables = [newTable({ roundId: 3, tableId: 4, playerIds: [0, 10, 14, 0], playerSeats: [0, 1, 2, 3] })];
+    const rows = [[0, 50000, 0], [10, 40000, 0], [14, 20000, 0], [0, 10000, 0]];
+    const result = applySheetScores([3, [4, ...rows]], t);
+    expect(result.ok && result.tables[0].finalPoints).toEqual([50000, 40000, 20000, 10000]);
+
+    // Rows in a different order still each fill a seat: the two substitutes take seats 1 and 4.
+    const shuffled = applySheetScores([3, [4, [10, 40000, 0], [0, 50000, 0], [0, 10000, 0], [14, 20000, 0]]], t);
+    expect(shuffled.ok && shuffled.tables[0].finalPoints).toEqual([50000, 40000, 20000, 10000]);
+
+    // A third substitute row has no seat left.
+    expect(applySheetScores([3, [4, ...rows, [0, 0, 0]]], t).ok).toBe(false);
+  });
+
   it('reports a clear error when the sheet has an unknown player', () => {
     playRound([[40000, 30000, 20000, 10000], [35000, 30000, 20000, 15000]]);
     const result = applySheetScores([1, [1, [999, 25000, 0]]], useStore.getState().tournament);
