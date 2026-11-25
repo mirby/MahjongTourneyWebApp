@@ -29,6 +29,18 @@ export function exportStats(tables: Table[], settings: TournamentSettings) {
   return { highestScore, penaltyCount };
 }
 
+/**
+ * The latest round whose tables all have scores entered, or 0 if none. Tables added on the
+ * Hanchan History tab (round 0) don't count.
+ */
+export function lastCompletedRound(t: Tournament): number {
+  for (let round = t.nextRound - 1; round >= 1; round--) {
+    const tables = getRound(t.tables, round);
+    if (tables.length > 0 && tables.every((table) => isComplete(table, t.settings))) return round;
+  }
+  return 0;
+}
+
 export function buildExportPayload(
   t: Tournament,
   scores: Scores,
@@ -55,6 +67,10 @@ export function buildExportPayload(
   // (scripts that predate these fields ignore them).
   return {
     roundNumber,
+    // For the "After Round X" labels on the Standings tab: the latest fully scored round.
+    // Usually roundNumber - 1 (the export follows new pairings), but roundNumber once the
+    // final round's scores are in.
+    standingsAfterRound: lastCompletedRound(t),
     standings,
     tables,
     tableCount: tables.length,

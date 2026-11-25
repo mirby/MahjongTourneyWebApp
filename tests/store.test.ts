@@ -251,6 +251,28 @@ describe('tournament flow through the store', () => {
     expect(applySheetScores([3, [4, ...rows, [0, 0, 0]]], t).ok).toBe(false);
   });
 
+  it('labels standings with the latest fully scored round', () => {
+    const after = () => {
+      const s = useStore.getState();
+      return buildExportPayload(s.tournament, s.scores, s.playersById).standingsAfterRound;
+    };
+    expect(after()).toBe(0);
+    playRound([[40000, 30000, 20000, 10000], [35000, 30000, 20000, 15000]]);
+    expect(after()).toBe(1); // final round scored, no new pairings: "After Round 1"
+
+    // New pairings for round 2: still after round 1, also while only some scores are in.
+    useStore.getState().addRound([
+      newTable({ tableId: 1, playerIds: [1, 3, 5, 7], playerSeats: [0, 1, 2, 3] }),
+      newTable({ tableId: 2, playerIds: [2, 4, 6, 8], playerSeats: [0, 1, 2, 3] }),
+    ]);
+    expect(after()).toBe(1);
+    const [t1, t2] = useStore.getState().tournament.tables.filter((t) => t.roundId === 2);
+    useStore.getState().updateTable({ ...t1, finalPoints: [40000, 30000, 20000, 10000], penalties: [0, 0, 0, 0] });
+    expect(after()).toBe(1);
+    useStore.getState().updateTable({ ...t2, finalPoints: [40000, 30000, 20000, 10000], penalties: [0, 0, 0, 0] });
+    expect(after()).toBe(2);
+  });
+
   it('reports a clear error when the sheet has an unknown player', () => {
     playRound([[40000, 30000, 20000, 10000], [35000, 30000, 20000, 15000]]);
     const result = applySheetScores([1, [1, [999, 25000, 0]]], useStore.getState().tournament);
