@@ -10,6 +10,7 @@ export function PlayerManagementTab() {
   const activatePlayer = useStore((s) => s.activatePlayer);
   const deactivatePlayer = useStore((s) => s.deactivatePlayer);
   const updateInactivePlayers = useStore((s) => s.updateInactivePlayers);
+  const addInactivePlayer = useStore((s) => s.addInactivePlayer);
 
   const [activeSel, setActiveSel] = useState<number | null>(null);
   const [inactiveSel, setInactiveSel] = useState<number | null>(null);
@@ -20,10 +21,7 @@ export function PlayerManagementTab() {
 
   const addPlayer = () => {
     const nextId = Math.max(0, ...Object.keys(playersById).map(Number)) + 1;
-    updateInactivePlayers([
-      ...tournament.inactivePlayers,
-      { id: nextId, name: `Freed Jyanshi ${nextId}`, affiliation: 'Mahjong Club' },
-    ]);
+    addInactivePlayer({ id: nextId, name: `Freed Jyanshi ${nextId}`, affiliation: 'Mahjong Club' });
   };
 
   return (

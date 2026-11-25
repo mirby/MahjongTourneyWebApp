@@ -39,6 +39,11 @@ export function calculateScores(t: Tournament): ScoreResult {
   // are set aside again at the end.
   const withdrawnAt = t.withdrawnAt ?? {};
   const isWithdrawn = (id: number) => withdrawnAt[id] !== undefined;
+  const missedCuts = t.missedCuts ?? {};
+  const missed = (id: number, cutIndex: number) => {
+    const range = missedCuts[id];
+    return range !== undefined && range[0] <= cutIndex && cutIndex < range[1];
+  };
   if (t.cuts.length > 0) {
     registered = [...registered, ...inactive];
     inactive = [];
@@ -59,8 +64,10 @@ export function calculateScores(t: Tournament): ScoreResult {
     remaining = kept;
 
     // Only the players still in the top group (who made every earlier cut) compete for this one.
-    // A player who left before this cut was made doesn't compete for it.
-    const competing = registered.filter((p) => !(isWithdrawn(p.id) && cutIndex >= withdrawnAt[p.id]));
+    // A player who left before this cut was made, or was inactive when it was made, doesn't
+    // compete for it.
+    const sitsOut = (id: number) => (isWithdrawn(id) && cutIndex >= withdrawnAt[id]) || missed(id, cutIndex);
+    const competing = registered.filter((p) => !sitsOut(p.id));
     const level = topCutLevel(competing, cutLevels);
     const candidates = competing.filter((p) => (cutLevels[p.id] ?? 0) === level);
     const postCutIds = cutQualifiers(candidates, scores, cut);
@@ -73,7 +80,8 @@ export function calculateScores(t: Tournament): ScoreResult {
     } else {
       const stillIn: Player[] = [];
       for (const p of registered) {
-        if (postCutIds.includes(p.id)) stillIn.push(p);
+        // Players sitting this cut out aren't removed by it (withdrawn players are set aside at the end).
+        if (postCutIds.includes(p.id) || sitsOut(p.id)) stillIn.push(p);
         else inactive.push(p);
       }
       registered = stillIn;

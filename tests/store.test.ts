@@ -354,18 +354,20 @@ describe('cuts where the remaining players continue', () => {
   });
 });
 
+function freshTournamentWithScores() {
+  freshTournament();
+  useStore.getState().addRound([
+    newTable({ tableId: 1, playerIds: [1, 2, 3, 4], playerSeats: [0, 1, 2, 3] }),
+    newTable({ tableId: 2, playerIds: [5, 6, 7, 8], playerSeats: [0, 1, 2, 3] }),
+  ]);
+  const points = [[50000, 30000, 15000, 5000], [40000, 30000, 20000, 10000]];
+  useStore.getState().tournament.tables.forEach((t, i) =>
+    useStore.getState().updateTable({ ...t, finalPoints: points[i], penalties: [0, 0, 0, 0] }),
+  );
+}
+
 describe('players deactivated by hand', () => {
-  beforeEach(() => {
-    freshTournament();
-    useStore.getState().addRound([
-      newTable({ tableId: 1, playerIds: [1, 2, 3, 4], playerSeats: [0, 1, 2, 3] }),
-      newTable({ tableId: 2, playerIds: [5, 6, 7, 8], playerSeats: [0, 1, 2, 3] }),
-    ]);
-    const points = [[50000, 30000, 15000, 5000], [40000, 30000, 20000, 10000]];
-    useStore.getState().tournament.tables.forEach((t, i) =>
-      useStore.getState().updateTable({ ...t, finalPoints: points[i], penalties: [0, 0, 0, 0] }),
-    );
-  });
+  beforeEach(freshTournamentWithScores);
   const cut = (playerCount: number, remainingContinue: boolean) =>
     useStore.getState().createCut({
       playerCount, scoreModification: ScoreModification.None, startRound: 1, endRound: 1, tiebreakPriority: [], remainingContinue,
@@ -399,6 +401,66 @@ describe('players deactivated by hand', () => {
     // Deleting the cut brings back the players it removed, but not those who left.
     s.deleteCut(0);
     expect(ids(useStore.getState().tournament.registeredPlayers)).toEqual([1, 2, 3, 4, 5, 7]);
+  });
+
+  it('include players added on the Player Management tab, who never compete for a cut', () => {
+    const sub = { id: 9, name: 'Sub', affiliation: '' };
+    useStore.getState().addInactivePlayer(sub);
+    // Four players have negative scores, so a 0-score player would make a top 6 if they competed.
+    expect(cut(6, true)).toBe(false);
+    let s = useStore.getState();
+    expect(ids(s.tournament.inactivePlayers)).toEqual([9]);
+    expect(Object.keys(s.cutLevels)).not.toContain('9');
+    expect(Object.keys(s.cutLevels).length).toBe(6);
+
+    cut(2, false);
+    useStore.getState().replaceTables(useStore.getState().tournament.tables);
+    s = useStore.getState();
+    expect(ids(s.tournament.inactivePlayers)).toContain(9);
+    expect(ids(s.tournament.registeredPlayers)).toHaveLength(2);
+
+    // Still inactive with no cuts left.
+    s.deleteCut(1);
+    useStore.getState().deleteCut(0);
+    expect(ids(useStore.getState().tournament.inactivePlayers)).toEqual([9]);
+  });
+
+  it('do not change an earlier cut when activated after it', () => {
+    useStore.getState().addInactivePlayer({ id: 9, name: 'Sub', affiliation: '' });
+    cut(6, true);
+    const before = Object.keys(useStore.getState().cutLevels).sort();
+    useStore.getState().activatePlayer(9);
+    useStore.getState().replaceTables(useStore.getState().tournament.tables);
+    let s = useStore.getState();
+    // Player 9 is active but below the top cut, which still holds the same six players.
+    expect(Object.keys(s.cutLevels).sort()).toEqual(before);
+    expect(ids(s.tournament.registeredPlayers)).toContain(9);
+
+    // A normal cut made earlier doesn't remove them either; a later one includes them.
+    freshTournamentWithScores();
+    useStore.getState().addInactivePlayer({ id: 9, name: 'Sub', affiliation: '' });
+    cut(4, false);
+    useStore.getState().activatePlayer(9);
+    useStore.getState().replaceTables(useStore.getState().tournament.tables);
+    s = useStore.getState();
+    expect(ids(s.tournament.registeredPlayers)).toEqual([1, 2, 5, 6, 9]);
+    expect(s.tournament.missedCuts).toEqual({ 9: [0, 1] });
+    expect(deserializeTournament(JSON.parse(JSON.stringify(serializeTournament(s.tournament)))).missedCuts).toEqual({ 9: [0, 1] });
+
+    // Deleting that cut: nothing left for them to have missed.
+    s.deleteCut(0);
+    expect(useStore.getState().tournament.missedCuts).toEqual({});
+    expect(ids(useStore.getState().tournament.registeredPlayers)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  });
+
+  it('repairs saves where an added player was not recorded as inactive', () => {
+    useStore.getState().addInactivePlayer({ id: 9, name: 'Sub', affiliation: '' });
+    cut(4, false);
+    const saved = serializeTournament(useStore.getState().tournament);
+    const loaded = deserializeTournament({ ...saved, withdrawn_at: {} });
+    expect(loaded.withdrawnAt).toEqual({ 9: 0 });
+    useStore.getState().loadTournament(loaded);
+    expect(ids(useStore.getState().tournament.registeredPlayers)).not.toContain(9);
   });
 
   it('come back when activated, and are recognised in older saves', () => {

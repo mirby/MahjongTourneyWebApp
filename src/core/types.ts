@@ -154,6 +154,12 @@ export interface Tournament {
    * compete in the cuts made before they left (so leaving doesn't change an earlier cut).
    */
   withdrawnAt: Record<number, number>;
+  /**
+   * Players who were inactive while cuts were made and later activated: Player ID -> [first,
+   * end) range of cut indexes they missed. They don't compete in those cuts, and those cuts
+   * don't remove them, so bringing a player back never changes an earlier cut.
+   */
+  missedCuts: Record<number, [number, number]>;
 }
 
 export function newTournament(): Tournament {
@@ -167,6 +173,7 @@ export function newTournament(): Tournament {
     nextRound: 1,
     roundPairingBlocks: {},
     withdrawnAt: {},
+    missedCuts: {},
   };
 }
 

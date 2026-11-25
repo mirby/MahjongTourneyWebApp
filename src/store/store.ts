@@ -52,6 +52,8 @@ interface StoreState {
   replaceTables: (tables: Table[]) => void;
 
   updateInactivePlayers: (players: Player[]) => void;
+  /** Adds a new player to the inactive list, where they stay (cuts don't bring them in). */
+  addInactivePlayer: (player: Player) => void;
   activatePlayer: (id: number) => void;
   deactivatePlayer: (id: number) => void;
 
@@ -139,17 +141,38 @@ export const useStore = create<StoreState>((set, get) => ({
       return { tournament, playersById: indexPlayers(tournament) };
     }),
 
+  addInactivePlayer: (player) =>
+    set((s) => {
+      const tournament = {
+        ...s.tournament,
+        inactivePlayers: [...s.tournament.inactivePlayers, player],
+        // 0: they were never in the field, so they don't compete for any cut and stay inactive
+        // until activated by hand.
+        withdrawnAt: { ...s.tournament.withdrawnAt, [player.id]: 0 },
+      };
+      return { tournament, playersById: indexPlayers(tournament) };
+    }),
+
   activatePlayer: (id) =>
     set((s) => {
       const player = s.playersById[id];
       if (!player) return {};
+      // Cuts made while they were inactive stay as they were: they sit those out.
+      const { withdrawnAt, missedCuts, cuts } = s.tournament;
+      const left = withdrawnAt[id];
+      let missed = missedCuts;
+      if (left !== undefined && left < cuts.length) {
+        const prev = missedCuts[id];
+        missed = { ...missedCuts, [id]: [Math.min(left, prev?.[0] ?? left), cuts.length] };
+      }
       const tournament = {
         ...s.tournament,
         inactivePlayers: s.tournament.inactivePlayers.filter((p) => p.id !== id),
         registeredPlayers: [...s.tournament.registeredPlayers, player].sort((a, b) => a.id - b.id),
-        withdrawnAt: withoutKey(s.tournament.withdrawnAt, id),
+        withdrawnAt: withoutKey(withdrawnAt, id),
+        missedCuts: missed,
       };
-      return { tournament };
+      return recalculated(tournament);
     }),
 
   deactivatePlayer: (id) =>
@@ -200,6 +223,11 @@ export const useStore = create<StoreState>((set, get) => ({
       // Players who left after the deleted cut now left one cut earlier.
       const withdrawnAt: Record<number, number> = {};
       for (const [id, n] of Object.entries(s.tournament.withdrawnAt)) withdrawnAt[+id] = n > index ? n - 1 : n;
+      const shift = (n: number) => (n > index ? n - 1 : n);
+      const missedCuts: Record<number, [number, number]> = {};
+      for (const [id, [from, to]] of Object.entries(s.tournament.missedCuts)) {
+        if (shift(from) < shift(to)) missedCuts[+id] = [shift(from), shift(to)];
+      }
       // With cuts remaining, the recalculation re-applies them from scratch. With none left,
       // nothing would bring the cut players back, so restore everyone here except players
       // who were deactivated by hand.
@@ -208,7 +236,7 @@ export const useStore = create<StoreState>((set, get) => ({
         registeredPlayers = all.filter((p) => withdrawnAt[p.id] === undefined);
         inactivePlayers = all.filter((p) => withdrawnAt[p.id] !== undefined);
       }
-      return recalculated({ ...s.tournament, cuts, registeredPlayers, inactivePlayers, withdrawnAt });
+      return recalculated({ ...s.tournament, cuts, registeredPlayers, inactivePlayers, withdrawnAt, missedCuts });
     }),
 
   setScriptId: (id) =>

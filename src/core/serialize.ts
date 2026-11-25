@@ -145,6 +145,7 @@ export function serializeTournament(t: Tournament): Json {
     // Not in the Godot format; older saves simply won't have it.
     round_pairing_blocks: t.roundPairingBlocks,
     withdrawn_at: t.withdrawnAt,
+    missed_cuts: t.missedCuts,
   };
 }
 
@@ -162,27 +163,37 @@ export function deserializeTournament(d: Json): Tournament {
     nextRound: d.next_round ?? 1,
     roundPairingBlocks: deserializeRoundPairingBlocks(d.round_pairing_blocks),
     withdrawnAt: {},
+    missedCuts: {},
   };
+  if (d.missed_cuts && typeof d.missed_cuts === 'object') {
+    for (const [id, range] of Object.entries(d.missed_cuts)) {
+      if (Array.isArray(range) && range.length === 2) t.missedCuts[+id] = [Number(range[0]), Number(range[1])];
+    }
+  }
   if (d.withdrawn_at && typeof d.withdrawn_at === 'object') {
     for (const [id, cuts] of Object.entries(d.withdrawn_at)) t.withdrawnAt[+id] = Number(cuts);
-  } else {
-    t.withdrawnAt = inferWithdrawn(t);
   }
+  t.withdrawnAt = { ...t.withdrawnAt, ...inferWithdrawn(t) };
   return t;
 }
 
 /**
- * Older saves don't record who was deactivated by hand. Any inactive player the cuts
- * wouldn't have removed must have been, so count them as having left after the last cut.
+ * Inactive players the save doesn't record as deactivated by hand: older saves don't record
+ * it at all, and players added on the Player Management tab weren't recorded before.
+ * Players who never sat at a table were never in the field (0: they compete in no cut).
+ * Any other inactive player the cuts wouldn't have removed must have been deactivated by
+ * hand, so count them as having left after the last cut.
  */
 function inferWithdrawn(t: Tournament): Record<number, number> {
   const result: Record<number, number> = {};
-  if (t.cuts.length === 0) {
-    for (const p of t.inactivePlayers) result[p.id] = 0;
-    return result;
+  const unrecorded = t.inactivePlayers.filter((p) => t.withdrawnAt[p.id] === undefined);
+  if (unrecorded.length === 0) return result;
+  const played = new Set(t.tables.flatMap((table) => table.playerIds));
+  const stillIn =
+    t.cuts.length === 0 ? null : new Set(calculateScores(t).registeredPlayers.map((p) => p.id));
+  for (const p of unrecorded) {
+    if (!played.has(p.id) || stillIn === null) result[p.id] = 0;
+    else if (stillIn.has(p.id)) result[p.id] = t.cuts.length;
   }
-  const { registeredPlayers } = calculateScores(t);
-  const stillIn = new Set(registeredPlayers.map((p) => p.id));
-  for (const p of t.inactivePlayers) if (stillIn.has(p.id)) result[p.id] = t.cuts.length;
   return result;
 }
