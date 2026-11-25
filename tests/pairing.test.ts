@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generatePairings, pairingCost, priorPairings, PairingSettings } from '../src/core/pairing';
+import { balanceWinds, generatePairings, pairingCost, priorPairings, PairingSettings, windHistory } from '../src/core/pairing';
 import { newTable, Player } from '../src/core/types';
 
 // Small seeded RNG so these tests are deterministic.
@@ -101,6 +101,54 @@ describe('generatePairings', () => {
     expect(r.duplicateCount).toBe(0);
     const prior = priorPairings(existing);
     expect(r.tables.every((t) => pairingCost(t.playerIds, prior) === 0)).toBe(true);
+  });
+});
+
+describe('seat wind balancing', () => {
+  const seated = (roundId: number, playerIds: number[]) =>
+    newTable({ roundId, playerIds, playerSeats: playerIds.map((_, i) => i) });
+
+  it('counts past winds per player, skipping substitutes and tables without winds', () => {
+    const h = windHistory([seated(1, [1, 2, 3, 0]), seated(2, [2, 1, 3, 4]), newTable({ playerIds: [1, 2, 3, 4] })]);
+    expect(h.get(1)).toEqual([1, 1, 0, 0]);
+    expect(h.get(3)).toEqual([0, 0, 2, 0]);
+    expect(h.get(4)).toEqual([0, 0, 0, 1]);
+    expect(h.has(0)).toBe(false);
+  });
+
+  it('gives each player a wind they have not had yet when possible', () => {
+    const h = windHistory([seated(1, [1, 2, 3, 4]), seated(2, [2, 3, 4, 1])]);
+    // Player 1 has had East and North, 2 East and South, 3 South and West, 4 West and North.
+    const order = balanceWinds([1, 2, 3, 4], h, mulberry32(1));
+    order.forEach((id, wind) => expect(h.get(id)![wind]).toBe(0));
+  });
+
+  it('spreads winds over a tournament far more evenly than random seating', () => {
+    const rng = mulberry32(8);
+    const tables: ReturnType<typeof newTable>[] = [];
+    for (let round = 1; round <= 4; round++) {
+      const r = generatePairings({ registered: players(16), scores: {}, existingTables: tables, tableSize: 4, settings: base, rng });
+      tables.push(...r.tables.map((t) => ({ ...t, roundId: round })));
+    }
+    // Table make-up comes first, so a perfect spread isn't always possible, but nobody
+    // gets a wind three times in four rounds, and most players get each wind once
+    // (random seating manages that for under 10% of players).
+    const counts = [...windHistory(tables).values()];
+    expect(counts.every((c) => Math.max(...c) <= 2)).toBe(true);
+    expect(counts.filter((c) => c.every((n) => n === 1)).length).toBeGreaterThanOrEqual(8);
+  });
+
+  it('leaves the players at each table unchanged', () => {
+    const existing = [seated(1, [1, 2, 3, 4]), seated(1, [5, 6, 7, 8])];
+    const withWinds = generatePairings({
+      registered: players(8), scores: {}, existingTables: existing, tableSize: 4, settings: base, rng: mulberry32(9),
+    });
+    const without = generatePairings({
+      registered: players(8), scores: {}, existingTables: existing, tableSize: 4,
+      settings: { ...base, assignSeatWinds: false }, rng: mulberry32(9),
+    });
+    const sets = (r: typeof withWinds) => r.tables.map((t) => [...t.playerIds].sort((a, b) => a - b).join());
+    expect(sets(withWinds)).toEqual(sets(without));
   });
 });
 

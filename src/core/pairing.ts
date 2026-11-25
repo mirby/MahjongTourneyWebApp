@@ -193,6 +193,58 @@ function swissPairings(
   return { pairings, byes };
 }
 
+/**
+ * For every player id, how many times they have sat in each wind (indexed by Wind).
+ * Tables with no seat winds recorded are ignored; substitutes (id 0) are not tracked.
+ */
+export function windHistory(tables: Table[]): Map<number, number[]> {
+  const history = new Map<number, number[]>();
+  for (const table of tables) {
+    if (table.playerSeats.length === 0) continue;
+    table.playerIds.forEach((id, i) => {
+      const wind = table.playerSeats[i];
+      if (id === 0 || wind === undefined) return;
+      let counts = history.get(id);
+      if (!counts) {
+        counts = [0, 0, 0, 0];
+        history.set(id, counts);
+      }
+      counts[wind] += 1;
+    });
+  }
+  return history;
+}
+
+/** Every ordering of `items`. */
+function permutations<T>(items: T[]): T[][] {
+  if (items.length <= 1) return [[...items]];
+  return items.flatMap((item, i) =>
+    permutations([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [item, ...rest]),
+  );
+}
+
+/**
+ * Orders a table's players so position i sits in wind i (East, South, ...), spreading winds
+ * as evenly as possible over the tournament. Picks the seating whose winds each player has
+ * had least often so far (the sum of those counts; this also minimises the sum of squared
+ * wind counts). Equally good seatings are chosen at random.
+ */
+export function balanceWinds(pairing: number[], history: Map<number, number[]>, rng: Rng = Math.random): number[] {
+  const had = (id: number, wind: number) => (id === 0 ? 0 : history.get(id)?.[wind] ?? 0);
+  let best: number[][] = [];
+  let bestCost = Infinity;
+  for (const order of permutations(pairing)) {
+    const cost = order.reduce((sum, id, wind) => sum + had(id, wind), 0);
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = [order];
+    } else if (cost === bestCost) {
+      best.push(order);
+    }
+  }
+  return best[Math.floor(rng() * best.length)];
+}
+
 /** Generates a set of pairings, retrying a few times to minimise repeat opponents. */
 export function generatePairings(opts: {
   registered: Player[];
@@ -248,10 +300,13 @@ export function generatePairings(opts: {
   }
 
   const seats = [Wind.East, Wind.South, Wind.West, Wind.North].slice(0, tableSize);
+  // Tables and who sits at them are settled above; balancing winds only reorders players
+  // within a table, so it never undoes Swiss blocks or duplicate avoidance.
+  const history = settings.assignSeatWinds ? windHistory(existingTables) : new Map<number, number[]>();
   const tables = bestPairings.map((pairing, i) =>
     newTable({
       tableId: i + 1,
-      playerIds: pairing,
+      playerIds: settings.assignSeatWinds ? balanceWinds(pairing, history, rng) : pairing,
       playerSeats: settings.assignSeatWinds ? [...seats] : [],
     }),
   );

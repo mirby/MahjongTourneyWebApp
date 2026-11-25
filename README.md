@@ -52,7 +52,7 @@ tests/          Scoring, pairing, store flow, and UI smoke tests
 
 ## Google Sheets
 
-Works against the same Apps Script web app as the Godot version, using its script ID. The web app must be deployed
+Works against the same Apps Script web app as the Godot version, using its deployment ID. The web app must be deployed
 with access set to **Anyone**, or the browser will block the requests (CORS). This part has not been tested against
 a live script.
 

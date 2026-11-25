@@ -201,7 +201,7 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
     } catch (e) {
       toast(
         e instanceof TypeError
-          ? 'The request failed or was blocked by the browser. Check the script ID and that the web app is deployed with access set to "Anyone". If you were exporting, the data may or may not have arrived.'
+          ? 'The request failed or was blocked by the browser. Check the deployment ID and that the web app is deployed with access set to "Anyone". If you were exporting, the data may or may not have arrived.'
           : (e as Error).message,
         { error: true },
       );
@@ -224,7 +224,7 @@ function GoogleSheets({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="stack">
-      <Row label="Google Apps Script ID">
+      <Row label="Google Apps Deployment ID">
         <input type="text" value={scriptId} onChange={(e) => setScriptId(e.target.value)} />
       </Row>
       <div className="btn-row" style={{ marginTop: 0 }}>
